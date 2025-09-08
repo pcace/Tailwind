@@ -1,6 +1,6 @@
-# Open Source E-Bike Controller
+# Tailwind
 
-A smart E-bike controller built on ESP32 with dual-core architecture for responsive pedal assist control. This project implements speed-dependent assist profiles with real-time sensor processing and VESC motor controller integration. It fully replaces the Ampler speed controller with a VESC controller.
+An e-bike controller built on ESP32 with dual-core architecture for responsive pedal assist control. This project implements speed-dependent assist profiles with real-time sensor processing and VESC motor controller integration.
 
 ## Table of Contents
 
@@ -43,11 +43,11 @@ A smart E-bike controller built on ESP32 with dual-core architecture for respons
 - [Contributing](#contributing)
 - [License](#license)
 
-<img src="/_documentation/concept.png" alt="E-Bike System Concept" width="500">
+<img src="/_documentation/concept.png" alt="Tailwind System Concept" width="500">
 
 ## What the ESP32 Does
 
-The ESP32 acts as the intelligent brain of the E-bike system, processing multiple sensor inputs and controlling motor assistance in real-time. Here's how it works:
+The ESP32 acts as the intelligent brain of the tailwind system, processing multiple sensor inputs and controlling motor assistance in real-time. Here's how it works:
 
 ### Core Functionality
 - **Pedal Assist Control**: Monitors pedal activity through PAS (Pedal Assist Sensor) and provides appropriate motor assistance
@@ -145,7 +145,7 @@ For complete wiring instructions and component connections, see [Wiring Guide](/
 ### Software Configuration
 1. Install PlatformIO IDE
 2. Clone this repository
-3. Configure your specific motor and battery parameters in `include/ebike_controller.h`
+3. Configure your specific motor and battery parameters in `include/tailwind_controller.h`
 4. Configure telemetry interfaces in `src/config.cpp`:
    - Set `enable_wifi_telemetry = true;` for minimalist WiFi web interface
    - Set `enable_ble_telemetry = true;` for BLE mobile interface
@@ -206,7 +206,7 @@ The system includes comprehensive debugging and testing capabilities for develop
 
 ### Debug Configuration
 
-Enable debug features in `include/ebike_controller.h`:
+Enable debug features in `include/tailwind_controller.h`:
 ```cpp
 // debug_mode will skip reading real values from pas and torque and instead
 // cycle through torque and cadence values automatically. 
@@ -228,7 +228,7 @@ The debug output shows:
 
 ## WiFi Web Interface
 
-The E-bike controller includes a minimalist WiFi web interface optimized for memory efficiency and stability. When enabled, the ESP32 creates a WiFi access point allowing you to monitor your E-bike via any web browser with essential information only.
+The tailwind controller includes a minimalist WiFi web interface optimized for memory efficiency and stability. When enabled, the ESP32 creates a WiFi access point allowing you to monitor your e-bike via any web browser with essential information only.
 
 ### Web Interface Features
 
@@ -249,8 +249,8 @@ The E-bike controller includes a minimalist WiFi web interface optimized for mem
 ### WiFi Configuration
 
 **Access Point Settings**
-- **SSID**: `E-Bike-Controller`
-- **Password**: `ebike123`
+- **SSID**: `Tailwind`
+- **Password**: `tailwind123`
 - **IP Address**: `192.168.4.1`
 - **Port**: 80 (HTTP)
 - **Max Connections**: 4 devices simultaneously
@@ -260,9 +260,9 @@ The E-bike controller includes a minimalist WiFi web interface optimized for mem
 
 1. **Enable WiFi** in `src/config.cpp`: Set `enable_wifi_telemetry = true;`
 2. **Upload firmware** to ESP32
-3. **Connect device** to WiFi network "E-Bike-Controller" (password: ebike123)
+3. **Connect device** to WiFi network "Tailwind" (password: tailwind123)
 4. **Open browser** and navigate to `http://192.168.4.1`
-5. **Monitor** essential E-bike data with a simple, reliable interface
+5. **Monitor** essential e-bike data with a simple, reliable interface
 
 ### Technical Implementation
 
@@ -298,13 +298,13 @@ The minimal interface is optimized for:
 
 ## BLE (Bluetooth Low Energy) Interface
 
-In addition to the WiFi web interface, the E-bike controller also provides a comprehensive BLE interface for mobile app integration and energy-efficient wireless monitoring.
+In addition to the WiFi web interface, the tailwind controller also provides a comprehensive BLE interface for mobile app integration and energy-efficient wireless monitoring.
 
 ### BLE Features
 
 **Device Information Service**
-- **Device Name**: `E-Bike-Controller`
-- **Manufacturer**: OpenSource E-Bike
+- **Device Name**: `Tailwind`
+- **Manufacturer**: Tailwind Project
 - **Model**: ESP32-Controller-v1.0
 - **Firmware Version**: 1.0.0
 
@@ -326,7 +326,7 @@ In addition to the WiFi web interface, the E-bike controller also provides a com
 
 **Connection Settings**
 - **Update Rate**: 2 seconds (0.5Hz) for battery efficiency
-- **Service UUIDs**: Custom UUIDs for E-bike specific data
+- **Service UUIDs**: Custom UUIDs for tailwind specific data
 - **Auto-reconnect**: Automatic advertising restart after disconnection
 - **Low Power**: Optimized for mobile device battery life
 
@@ -334,13 +334,13 @@ In addition to the WiFi web interface, the E-bike controller also provides a com
 
 1. **Enable BLE** in `src/config.cpp`: Set `enable_ble_telemetry = true;`
 2. **Upload firmware** to ESP32
-3. **Scan for devices** named "E-Bike-Controller" in your BLE app
+3. **Scan for devices** named "Tailwind" in your BLE app
 4. **Connect and subscribe** to notification characteristics for live data
 5. **Control modes** by writing mode numbers to the Mode Control characteristic
 
 ### iPhone/iOS Connection
 
-**Important**: The E-Bike Controller will **NOT** appear in iPhone's standard Bluetooth settings! This is normal for BLE devices.
+**Important**: The Tailwind controller will **NOT** appear in iPhone's standard Bluetooth settings! This is normal for BLE devices.
 
 **Required**: You need a BLE GATT-compatible app. Recommended apps:
 - **LightBlue® Explorer** (free, excellent for testing)
@@ -350,7 +350,7 @@ In addition to the WiFi web interface, the E-bike controller also provides a com
 **Step-by-step for iPhone**:
 1. Install "LightBlue Explorer" from App Store
 2. Open app (automatically starts BLE scan)
-3. Look for "E-Bike-Controller" in device list
+3. Look for "Tailwind" in device list
 4. Tap device → "Connect"
 5. Explore services and characteristics
 6. Enable notifications on telemetry characteristics for live data
@@ -382,12 +382,12 @@ The BLE interface runs on the same FreeRTOS task architecture:
 
 ## Legal Compliance
 
-**⚠️ Important Notice: This controller is NOT compliant with European E-bike regulations (EN 15194).**
+**⚠️ Important Notice: This controller is NOT compliant with European e-bike regulations (EN 15194).**
 
 This is an open-source project designed for:
 - Research and educational purposes
 - Private property use only
-- Countries/regions without strict E-bike speed limitations
+- Countries/regions without strict e-bike speed limitations
 - Custom applications where regulations permit
 
 **Key differences from EU regulations:**
@@ -402,7 +402,7 @@ This is an open-source project designed for:
 
 To customize the controller for your specific setup:
 
-- **Hardware Settings**: Motor specifications, battery parameters, and pin assignments are configured in `include/ebike_controller.h`
+- **Hardware Settings**: Motor specifications, battery parameters, and pin assignments are configured in `include/tailwind_controller.h`
 - **Assist Profiles**: Speed curves, assist modes, and behavior profiles are defined in `src/config.cpp`
 - **Speed Points**: Modify the `SPEED_POINTS_KMH` array to change speed ranges for assist curves
 - **Motor Parameters**: Adjust pole count, gear ratios, and power limits for your specific motor

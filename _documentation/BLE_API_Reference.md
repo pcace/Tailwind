@@ -1,30 +1,30 @@
-# BLE Charakteristiken Referenz
+# BLE Characteristics Reference
 
-Diese Datei dokumentiert alle BLE (Bluetooth Low Energy) Charakteristiken des E-Bike Controllers für die Entwicklung von mobilen Apps.
+This file documents all BLE (Bluetooth Low Energy) characteristics of the Tailwind Controller for mobile app development.
 
 ## Device Information Service (180A)
 
-Standard Bluetooth Service für Geräteinformationen.
+Standard Bluetooth service for device information.
 
-| Characteristic | UUID | Type | Beschreibung |
+| Characteristic | UUID | Type | Description |
 |----------------|------|------|-------------|
-| Manufacturer Name | 2A29 | Read | "OpenSource E-Bike" |
+| Manufacturer Name | 2A29 | Read | "Tailwind Project" |
 | Model Number | 2A24 | Read | "ESP32-Controller-v1.0" |
 | Firmware Revision | 2A26 | Read | "1.0.0" |
 
 ## Telemetry Service (12345678-1234-1234-1234-123456789abc)
 
-Hauptservice für alle E-Bike Telemetriedaten.
+Main service for all Tailwind telemetry data.
 
-| Characteristic | UUID | Type | Format | Beschreibung |
+| Characteristic | UUID | Type | Format | Description |
 |----------------|------|------|--------|-------------|
-| Speed | ...a001 | Read/Notify | UInt16 (2 bytes) | Geschwindigkeit in 0.1 km/h (z.B. 254 = 25.4 km/h) |
-| Cadence | ...a002 | Read/Notify | UInt8 (1 byte) | Trittfrequenz in RPM (0-255) |
-| Torque | ...a003 | Read/Notify | UInt16 (2 bytes) | Drehmoment in 0.01 Nm (z.B. 350 = 3.50 Nm) |
-| Battery | ...a004 | Read/Notify | UInt8 (1 byte) | Batteriestand in % (0-100) |
-| Motor Current | ...a005 | Read/Notify | UInt16 (2 bytes) | Motorstrom in 0.01 A (z.B. 1250 = 12.50 A) |
-| VESC Data | ...a006 | Read/Notify | JSON String | Erweiterte VESC-Daten |
-| System Status | ...a007 | Read/Notify | JSON String | Systemstatus und Mode |
+| Speed | ...a001 | Read/Notify | UInt16 (2 bytes) | Speed in 0.1 km/h (e.g. 254 = 25.4 km/h) |
+| Cadence | ...a002 | Read/Notify | UInt8 (1 byte) | Cadence in RPM (0-255) |
+| Torque | ...a003 | Read/Notify | UInt16 (2 bytes) | Torque in 0.01 Nm (e.g. 350 = 3.50 Nm) |
+| Battery | ...a004 | Read/Notify | UInt8 (1 byte) | Battery level in % (0-100) |
+| Motor Current | ...a005 | Read/Notify | UInt16 (2 bytes) | Motor current in 0.01 A (e.g. 1250 = 12.50 A) |
+| VESC Data | ...a006 | Read/Notify | JSON String | Extended VESC data |
+| System Status | ...a007 | Read/Notify | JSON String | System status and mode |
 
 ### VESC Data JSON Format
 ```json

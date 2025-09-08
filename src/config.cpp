@@ -1,4 +1,4 @@
-#include "ebike_controller.h"
+#include "tailwind_controller.h"
 #include <VescUart.h>
 
 // =============================================================================
@@ -17,7 +17,7 @@ bool vesc_bridge_mode = false; // Set to true to enable VESC Bridge Mode
 // NOTE: When vesc_bridge_mode is enabled, the ESP32 acts as a transparent
 // bridge between your computer and the VESC controller. This allows you to
 // use VESC Tool directly through the ESP32's USB connection.
-// WARNING: When bridge mode is active, the normal e-bike controller is disabled!
+// WARNING: When bridge mode is active, the normal tailwind controller is disabled!
 
 // NOTE: Both WiFi and BLE can be enabled simultaneously, but this requires
 // the "huge_app.csv" partition scheme in platformio.ini to fit in flash memory.

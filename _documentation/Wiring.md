@@ -1,7 +1,7 @@
-# ESP32 DevKit v1 Wiring Guide for E-Bike Controller
+# ESP32 DevKit v1 Wiring Guide for Tailwind Controller
 
 ## Overview
-This document describes the complete wiring of the ESP32 DevKit v1 for the E-Bike Controller System with PAS sensors, torque sensor, and VESC motor controller.
+This document describes the complete wiring of the ESP32 DevKit v1 for the Tailwind Controller System with PAS sensors, torque sensor, and VESC motor controller.
 
 ⚠️ **IMPORTANT**: ESP32 operates with 3.3V logic! 5V sensors require Logic Level Converter!
 

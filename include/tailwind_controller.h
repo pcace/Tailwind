@@ -1,5 +1,5 @@
-#ifndef EBIKE_CONTROLLER_H
-#define EBIKE_CONTROLLER_H
+#ifndef TAILWIND_CONTROLLER_H
+#define TAILWIND_CONTROLLER_H
 
 #include <Arduino.h>
 
@@ -285,7 +285,7 @@ void sensorTask(void *pvParameters);
 void vescTask(void *pvParameters);
 
 // Initialization
-void ebike_setup();
+void tailwind_setup();
 void startup_battery_indicator(); // Show battery level at startup
 void initializeAssistProfiles();  // Initialize assist profiles from active configuration
 
@@ -333,4 +333,4 @@ void initVescBridge();
 void runVescBridge();
 void shutdownVescBridge();
 
-#endif // EBIKE_CONTROLLER_H
+#endif // TAILWIND_CONTROLLER_H

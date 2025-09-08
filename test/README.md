@@ -1,4 +1,4 @@
-# E-Bike Controller Testing Strategy
+# Tailwind Controller Testing Strategy
 
 ## Running Tests
 

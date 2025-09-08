@@ -1,4 +1,4 @@
-#include "ebike_controller.h"
+#include "tailwind_controller.h"
 
 // =============================================================================
 // DEBUG SIMULATION - Simuliert realistische PAS und Torque Werte

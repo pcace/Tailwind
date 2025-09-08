@@ -16,7 +16,8 @@
 #define PI 3.14159265359
 
 // Mock ESP32/Arduino functions for testing
-extern "C" {
+extern "C"
+{
     unsigned long millis();
     unsigned long micros();
     int analogRead(int pin);
@@ -26,34 +27,40 @@ extern "C" {
 }
 
 // Mock constrain function
-template<typename T>
-T constrain(T value, T min_val, T max_val) {
-    if (value < min_val) return min_val;
-    if (value > max_val) return max_val;
+template <typename T>
+T constrain(T value, T min_val, T max_val)
+{
+    if (value < min_val)
+        return min_val;
+    if (value > max_val)
+        return max_val;
     return value;
 }
 
 // Mock max function
-template<typename T>
-T max(T a, T b) {
+template <typename T>
+T max(T a, T b)
+{
     return (a > b) ? a : b;
 }
 
-// Mock min function  
-template<typename T>
-T min(T a, T b) {
+// Mock min function
+template <typename T>
+T min(T a, T b)
+{
     return (a < b) ? a : b;
 }
 
 // Mock abs function
-template<typename T>
-T abs(T value) {
+template <typename T>
+T abs(T value)
+{
     return (value < 0) ? -value : value;
 }
 
-// E-bike controller constants (copied from ebike_controller.h)
+// Tailwind controller constants (copied from tailwind_controller.h)
 #define NUM_SPEED_POINTS 6
-#define TORQUE_STANDSTILL_DEFAULT 2880  // Default standstill for tests
+#define TORQUE_STANDSTILL_DEFAULT 2880 // Default standstill for tests
 #define TORQUE_MAX_FORWARD 4095
 #define TORQUE_MAX_BACKWARD 0
 #define TORQUE_MAX_NM 100.0
@@ -73,7 +80,7 @@ T abs(T value) {
 #define CADENCE_WINDOW_MS 1000
 #define MODE_SWITCH_STEPS 3
 
-// Mock function declarations for E-bike controller
+// Mock function declarations for Tailwind controller
 void update_torque();
 void calculate_speed_dependent_assist();
 void calculate_assist_power();

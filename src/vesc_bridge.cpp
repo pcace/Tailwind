@@ -30,7 +30,7 @@
 */
 
 #include <Arduino.h>
-#include "ebike_controller.h"
+#include "tailwind_controller.h"
 
 // Bridge configuration
 #define BRIDGE_BAUD_RATE        115200    // VESC standard baud rate
