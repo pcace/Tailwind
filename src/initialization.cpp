@@ -86,6 +86,32 @@ void startup_battery_indicator()
 }
 
 // =============================================================================
+// MODE CHANGE INDICATOR
+// =============================================================================
+
+void indicate_mode_change(int mode)
+{
+  // Blink LED (mode + 1) times to show which mode is active
+  // Mode 0 = 1 blink, Mode 1 = 2 blinks, etc.
+  int blinks = mode + 1;
+  
+  // Small delay before starting blinks
+  delay(200);
+  
+  // Show mode through LED blinks
+  for (int i = 0; i < blinks; i++)
+  {
+    digitalWrite(BATTERY_LED_PIN, HIGH);
+    delay(150); // 0.15s on
+    digitalWrite(BATTERY_LED_PIN, LOW);
+    delay(150); // 0.15s off
+  }
+  
+  // Ensure LED is off after sequence
+  digitalWrite(BATTERY_LED_PIN, LOW);
+}
+
+// =============================================================================
 // INITIALIZATION
 // =============================================================================
 

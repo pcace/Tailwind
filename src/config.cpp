@@ -55,6 +55,10 @@ AssistProfile AVAILABLE_PROFILES[] = {
      "No assist",
      false,
      {0.0, 0.0, 0.0, 0.0, 0.0, 0.0}},
+    {"Full Power",
+     "Full Power",
+     false,
+     {100.0, 100.0, 100.0, 100.0, 100.0, 100.0}},
 };
 
 // Calculate number of active profiles at compile time

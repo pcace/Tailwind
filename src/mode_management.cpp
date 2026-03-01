@@ -32,6 +32,9 @@ void update_mode_selection() {
       Serial.println(")");
       
       addLogMessage("Mode switched to: " + String(current_mode) + " (Reverse steps: " + String(-pos) + ")");
+      
+      // Show mode change via LED blinks
+      indicate_mode_change(current_mode);
     }
   } else {
     // Position reset (=0) - reset session flag for next cycle
@@ -62,6 +65,9 @@ void changeAssistMode(int new_mode) {
       xSemaphoreGive(dataUpdateSemaphore);
       
       Serial.printf("External mode change to: %d (%s)\n", new_mode, AVAILABLE_PROFILES[new_mode].name);
+      
+      // Show mode change via LED blinks
+      indicate_mode_change(new_mode);
     }
   }
 }

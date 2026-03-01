@@ -287,6 +287,7 @@ void vescTask(void *pvParameters);
 // Initialization
 void tailwind_setup();
 void startup_battery_indicator(); // Show battery level at startup
+void indicate_mode_change(int mode); // Show current mode via LED blinks
 void initializeAssistProfiles();  // Initialize assist profiles from active configuration
 
 // Sensor functions
