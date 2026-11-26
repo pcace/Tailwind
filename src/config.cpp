@@ -6,10 +6,7 @@
 // =============================================================================
 
 // WiFi Web Interface - set to true to enable
-bool enable_wifi_telemetry = false; // Set to true to enable WiFi Web Interface
-
-// BLE (Bluetooth Low Energy) Interface - set to true to enable
-bool enable_ble_telemetry = true; // Set to true to enable BLE Interface
+bool enable_wifi_telemetry = true;
 
 // VESC Bridge Mode - set to true to enable direct VESC access via ESP32
 bool vesc_bridge_mode = false; // Set to true to enable VESC Bridge Mode
@@ -19,12 +16,6 @@ bool vesc_bridge_mode = false; // Set to true to enable VESC Bridge Mode
 // use VESC Tool directly through the ESP32's USB connection.
 // WARNING: When bridge mode is active, the normal tailwind controller is disabled!
 
-// NOTE: Both WiFi and BLE can be enabled simultaneously, but this requires
-// the "huge_app.csv" partition scheme in platformio.ini to fit in flash memory.
-// If memory is tight, disable one of them:
-// - WiFi: Best for web browser monitoring, multiple connections, debugging
-// - BLE: Best for mobile apps, lower power consumption, single connection
-
 // =============================================================================
 // GLOBAL VARIABLE DEFINITIONS AND CONFIGURATION
 // =============================================================================
@@ -32,7 +23,7 @@ bool vesc_bridge_mode = false; // Set to true to enable VESC Bridge Mode
 // Speed interpolation points [km/h]
 float SPEED_POINTS_KMH[NUM_SPEED_POINTS] = {0, 5, 10, 15, 20, 30, 40};
 
-// Profile order matches AssistMode and the BLE mode IDs.
+// Profile order matches AssistMode and the web API mode IDs.
 AssistProfile AVAILABLE_PROFILES[] = {
 
     {"Urban",

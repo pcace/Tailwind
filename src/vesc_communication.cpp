@@ -72,34 +72,6 @@ void update_vesc_data() {
     // Also read actual current for monitoring
     actual_current_amps = vescUart.data.avgMotorCurrent;
     
-    // Extended VESC data for web interface
-    float erpm_raw = vescUart.data.rpm;
-    float duty_cycle_raw = vescUart.data.dutyCycleNow;
-    float temp_mosfet_raw = vescUart.data.tempMosfet;
-    float temp_motor_raw = vescUart.data.tempMotor;
-    float amp_hours_raw = vescUart.data.ampHours;
-    float watt_hours_raw = vescUart.data.wattHours;
-    
-    // Update shared VESC data (thread-safe)
-    if (xSemaphoreTake(dataUpdateSemaphore, pdMS_TO_TICKS(5)) == pdTRUE) {
-      sharedVescData.speed_kmh = speed_kmh;
-      sharedVescData.data_valid = speed_data_valid;
-      sharedVescData.actual_current = actual_current_amps;
-      sharedVescData.battery_voltage = battery_voltage;
-      sharedVescData.battery_percentage = battery_percentage;
-      
-      // Extended data
-      sharedVescData.rpm = erpm_raw;
-      sharedVescData.duty_cycle = duty_cycle_raw;
-      sharedVescData.temp_mosfet = temp_mosfet_raw;
-      sharedVescData.temp_motor = temp_motor_raw;
-      sharedVescData.amp_hours = amp_hours_raw;
-      sharedVescData.watt_hours = watt_hours_raw;
-      sharedVescData.last_update = millis();
-      
-      xSemaphoreGive(dataUpdateSemaphore);
-    }
-    
     // Read battery voltage and calculate percentage
     battery_voltage = vescUart.data.inpVoltage;
     
@@ -113,6 +85,26 @@ void update_vesc_data() {
       battery_percentage = ((battery_voltage - BATTERY_CRITICAL_VOLTAGE) / 
                            (BATTERY_FULL_VOLTAGE - BATTERY_CRITICAL_VOLTAGE)) * 100.0;
     }
+
+    // Publish a complete snapshot from this packet for the sensor task and web API.
+    if (xSemaphoreTake(dataUpdateSemaphore, pdMS_TO_TICKS(5)) == pdTRUE) {
+      sharedVescData.speed_kmh = speed_kmh;
+      sharedVescData.data_valid = speed_data_valid;
+      sharedVescData.telemetry_valid = true;
+      sharedVescData.actual_current = actual_current_amps;
+      sharedVescData.input_current = vescUart.data.avgInputCurrent;
+      sharedVescData.battery_voltage = battery_voltage;
+      sharedVescData.battery_percentage = battery_percentage;
+      sharedVescData.rpm = erpm;
+      sharedVescData.duty_cycle = vescUart.data.dutyCycleNow;
+      sharedVescData.temp_mosfet = vescUart.data.tempMosfet;
+      sharedVescData.temp_motor = vescUart.data.tempMotor;
+      sharedVescData.amp_hours = vescUart.data.ampHours;
+      sharedVescData.watt_hours = vescUart.data.wattHours;
+      sharedVescData.watt_hours_charged = vescUart.data.wattHoursCharged;
+      sharedVescData.last_update = millis();
+      xSemaphoreGive(dataUpdateSemaphore);
+    }
     
     // Update battery status
     update_battery_status();
@@ -124,6 +116,7 @@ void update_vesc_data() {
     if (xSemaphoreTake(dataUpdateSemaphore, pdMS_TO_TICKS(5)) == pdTRUE) {
       sharedVescData.speed_kmh = 0.0;
       sharedVescData.data_valid = false;
+      sharedVescData.telemetry_valid = false;
       xSemaphoreGive(dataUpdateSemaphore);
     }
     

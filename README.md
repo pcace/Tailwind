@@ -25,19 +25,9 @@ An e-bike controller built on ESP32 with dual-core architecture for responsive p
   - [Debug Configuration](#debug-configuration)
   - [Serial Monitor Output](#serial-monitor-output)
 - [WiFi Web Interface](#wifi-web-interface)
-  - [Web Interface Features](#web-interface-features)
-  - [WiFi Configuration](#wifi-configuration)
   - [How to Access](#how-to-access)
-  - [Technical Implementation](#technical-implementation)
-  - [Mobile Compatibility](#mobile-compatibility)
-- [BLE (Bluetooth Low Energy) Interface](#ble-bluetooth-low-energy-interface)
-  - [BLE Features](#ble-features)
-  - [BLE Configuration](#ble-configuration)
-  - [How to Connect](#how-to-connect)
-  - [iPhone/iOS Connection](#iphoneios-connection)
-  - [Android Connection](#android-connection)
-  - [Mobile App Development](#mobile-app-development)
-  - [Technical Implementation](#technical-implementation-1)
+  - [Ride Recording](#ride-recording)
+  - [HTTP API](#http-api)
 - [Legal Compliance](#legal-compliance)
 - [Configuration](#configuration)
 - [Contributing](#contributing)
@@ -75,7 +65,7 @@ The ESP32's dual-core processor is utilized for optimal performance:
 
 #### Speed-Dependent Assist Algorithm
 
-| Mode | BLE ID | GPIO4 LED flashes | Assistance |
+| Mode | API ID | GPIO4 LED flashes | Assistance |
 |------|--------|-------------------|------------|
 | Urban | `0` | 1 | Default at startup. Multiplies rider power using the speed curve below. |
 | Max | `1` | 2 | Requests up to 350 W of assistance once forward pedaling is confirmed, subject to the 15 A motor-current command limit and VESC limits. |
@@ -143,13 +133,9 @@ For complete wiring instructions and component connections, see [Wiring Guide](/
 1. Install PlatformIO IDE
 2. Clone this repository
 3. Configure your specific motor and battery parameters in `include/tailwind_controller.h`
-4. Configure telemetry interfaces in `src/config.cpp`:
-   - Set `enable_wifi_telemetry = true;` for minimalist WiFi web interface
-   - Set `enable_ble_telemetry = true;` for BLE mobile interface
-   - Both can be enabled simultaneously (requires huge_app partition)
-5. Upload firmware to ESP32
+4. Upload the `esp32doit-devkit-v1` environment to the ESP32. WiFi is enabled by default on this branch.
 
-**Memory Requirements**: The minimalist WiFi interface is optimized for memory efficiency. WiFi + BLE together requires ~1.2MB flash memory (reduced from previous 1.6MB). The project uses `huge_app.csv` partition (3.1MB app space) to accommodate both interfaces comfortably. The simplified WiFi implementation significantly reduces memory pressure and improves overall system stability.
+The ESP32 build excludes the BLE module, whose [source](src/ble_telemetry.cpp) and [API reference](_documentation/BLE_API_Reference.md) remain in the repository. The HTML page is served from flash, and WiFi startup reports the available heap over USB serial.
 
 ## Code Structure
 
@@ -164,6 +150,7 @@ src/
 ├── vesc_communication.cpp # UART protocol with VESC
 ├── mode_management.cpp   # User interface and mode switching
 ├── debug_output.cpp      # Serial monitoring and diagnostics
+├── wifi_telemetry.cpp    # Access point and HTTP API
 └── initialization.cpp    # Hardware setup and calibration
 ```
 
@@ -175,11 +162,8 @@ src/
 - ✅ **User Friendly**: Simple mode switching with LED feedback
 - ✅ **Diagnostic Tools**: Comprehensive debug output and monitoring
 - ✅ **Safety First**: Multiple protection layers and fail-safes
-- ✅ **Memory Optimized**: Minimalist WiFi interface for maximum stability
-- ✅ **Dual Interface**: WiFi web monitoring + BLE mobile connectivity
+- ✅ **WiFi Interface**: Live data, assist mode selection, and browser-based ride recording
 - ✅ **Open Source**: Fully documented and customizable
-
-**Note**: The WiFi web interface has been optimized for stability and memory efficiency. It now provides essential monitoring data only (speed, battery, torque, mode) through a simplified interface designed for reliable operation on ESP32 hardware.
 
 ## Debug Mode
 
@@ -225,157 +209,28 @@ The debug output shows:
 
 ## WiFi Web Interface
 
-The tailwind controller includes a minimalist WiFi web interface optimized for memory efficiency and stability. When enabled, the ESP32 creates a WiFi access point allowing you to monitor your e-bike via any web browser with essential information only.
-
-### Web Interface Features
-
-**Minimalist Real-time Dashboard**
-- **Essential Metrics Only**: Speed (km/h), Battery level (%), Torque (Nm), Active assist mode
-- **Simplified Layout**: Clean, mobile-optimized interface with large, readable values
-- **Low Memory Footprint**: Optimized for ESP32 stability with minimal resource usage
-- **Manual Refresh**: Single refresh button to update all values on demand
-- **Auto-refresh**: Automatic updates every 5 seconds to reduce system load
-
-**Key Design Principles**
-- **Stability First**: Extremely simple implementation to prevent memory issues and crashes
-- **Essential Data Only**: Shows only the most important riding information
-- **Mobile Optimized**: Large text and buttons for easy reading while riding
-- **Low Bandwidth**: Minimal data transfer for reliable connection
-- **No Complex Features**: Removed logging, detailed VESC data, and mode switching to ensure stability
-
-### WiFi Configuration
-
-**Access Point Settings**
-- **SSID**: `Tailwind`
-- **Password**: `tailwind123`
-- **IP Address**: `192.168.4.1`
-- **Port**: 80 (HTTP)
-- **Max Connections**: 4 devices simultaneously
-- **Channel**: 6 (optimized for better connection stability)
-
 ### How to Access
 
-1. **Enable WiFi** in `src/config.cpp`: Set `enable_wifi_telemetry = true;`
-2. **Upload firmware** to ESP32
-3. **Connect device** to WiFi network "Tailwind" (password: tailwind123)
-4. **Open browser** and navigate to `http://192.168.4.1`
-5. **Monitor** essential e-bike data with a simple, reliable interface
+1. Open the ESP32 USB serial monitor at 115200 baud and read the WPA2 password shown at startup. The ESP32 generates the password once and stores it locally for future boots.
+2. Join the WiFi network `Tailwind`. It is a local access point without internet access.
+3. Open [http://192.168.4.1](http://192.168.4.1) in your browser. The page shows live telemetry and lets you select Aus, Urban, or Max. The firmware still starts in Urban and accepts reverse pedaling for mode selection.
 
-### Technical Implementation
+### Ride Recording
 
-The minimalist web interface is designed for maximum stability:
+Start a ride on the webpage and keep the page open in the foreground. About once a second, the page stores a telemetry sample in IndexedDB on that device. Locking the screen, switching apps, or losing WiFi can cause gaps. Export a finished ride as CSV from the same browser. Clearing its site data removes the saved rides.
 
-- **Single API Endpoint**: Only `/status` endpoint providing essential data (speed, battery, torque, mode)
-- **No Logging System**: Removed all logging functionality to save memory
-- **Simplified HTML**: Minimal CSS and JavaScript for fast loading and low memory usage
-- **Reduced Stack Size**: WiFi task uses only 8KB stack (reduced from 16KB)
-- **Thread-safe Data Access**: Semaphore-protected access to shared sensor data
-- **Error Recovery**: Automatic WiFi Access Point restart if connection fails
-- **Low Update Rate**: 2-second intervals to reduce system load
+The ride shows net energy from the change in consumed Wh minus the change in returned Wh. A detected counter reset suppresses the net figure. The CSV includes both raw counters. The displayed speed is estimated from motor RPM and can drop to zero when the geared hub freewheels.
 
-### Memory Optimization
+### HTTP API
 
-**What was removed for stability:**
-- System logging and log display
-- Detailed VESC telemetry (temperatures, voltages, etc.)
-- Interactive mode switching via web interface
-- Complex JSON processing (replaced with simple string concatenation)
-- Debug output and verbose error messages
-- Real-time auto-refresh (now manual refresh + 5-second intervals)
+| Method | Path | Result |
+| --- | --- | --- |
+| GET | `/api/status` | JSON sample with mode, pedal data, commanded phase current, and VESC telemetry. Unavailable VESC values are `null`. |
+| POST | `/api/mode` | Queues a mode change and returns HTTP 202. The next status sample confirms the active mode. |
 
-**Result:** Significantly reduced memory usage and improved stability, especially important when running alongside BLE interface.
+For a mode change, send `mode=0` (Urban), `mode=1` (Max), or `mode=2` (Aus) as `application/x-www-form-urlencoded` with the header `X-Tailwind-Request: 1`. The API accepts the write through the fixed AP IP. It uses the same mode selection logic as the rest of the controller.
 
-### Mobile Compatibility
-
-The minimal interface is optimized for:
-- Quick status checks during rides
-- Handlebar-mounted devices with limited screen space
-- Reliable connection even with low signal strength
-- Fast loading on slower mobile connections
-
-## BLE (Bluetooth Low Energy) Interface
-
-In addition to the WiFi web interface, the tailwind controller also provides a comprehensive BLE interface for mobile app integration and energy-efficient wireless monitoring.
-
-### BLE Features
-
-**Device Information Service**
-- **Device Name**: `Tailwind`
-- **Manufacturer**: Tailwind Project
-- **Model**: ESP32-Controller-v1.0
-- **Firmware Version**: 1.0.0
-
-**Telemetry Service** (Notifications enabled)
-- **Speed**: Real-time speed data (float, 4 bytes)
-- **Cadence**: Pedaling cadence in RPM (float, 4 bytes)
-- **Torque**: Applied torque in Nm (float, 4 bytes)
-- **Battery**: Battery level percentage (uint8, 1 byte)
-- **Motor Current**: Current motor current in A (float, 4 bytes)
-- **VESC Data**: Extended motor controller data (JSON string)
-- **System Status**: Mode, status flags, and timestamps (JSON string)
-
-**Control Service**
-- **Mode Control**: Write characteristic to change assist modes (uint8, 1 byte)
-- **Mode List**: Available assist profiles with IDs, names, and GPIO2 LED status settings (JSON string)
-- **Command Interface**: Text commands (GET_STATUS, GET_MODES, EMERGENCY_STOP)
-
-### BLE Configuration
-
-**Connection Settings**
-- **Update Rate**: 2 seconds (0.5Hz) for battery efficiency
-- **Service UUIDs**: Custom UUIDs for tailwind specific data
-- **Auto-reconnect**: Automatic advertising restart after disconnection
-- **Low Power**: Optimized for mobile device battery life
-
-### How to Connect
-
-1. **Enable BLE** in `src/config.cpp`: Set `enable_ble_telemetry = true;`
-2. **Upload firmware** to ESP32
-3. **Scan for devices** named "Tailwind" in your BLE app
-4. **Connect and subscribe** to notification characteristics for live data
-5. **Control modes** by writing mode numbers to the Mode Control characteristic
-
-### iPhone/iOS Connection
-
-**Important**: The Tailwind controller will **NOT** appear in iPhone's standard Bluetooth settings! This is normal for BLE devices.
-
-**Required**: You need a BLE GATT-compatible app. Recommended apps:
-- **LightBlue® Explorer** (free, excellent for testing)
-- **nRF Connect for Mobile** (professional BLE tool)
-- **BLE Scanner** (simple and user-friendly)
-
-**Step-by-step for iPhone**:
-1. Install "LightBlue Explorer" from App Store
-2. Open app (automatically starts BLE scan)
-3. Look for "Tailwind" in device list
-4. Tap device → "Connect"
-5. Explore services and characteristics
-6. Enable notifications on telemetry characteristics for live data
-7. Use the "Mode Control" characteristic to select Urban (`00`), Max (`01`), or Aus (`02`).
-
-### Android Connection
-
-Android apps can use the same BLE tools or custom apps using the Android BLE API with the UUIDs provided in the [BLE API Reference](_documentation/BLE_API_Reference.md).
-
-### Mobile App Development
-
-The BLE interface is designed for easy mobile app integration:
-
-- **Standard BLE GATT**: Compatible with iOS, Android, and other BLE platforms
-- **JSON Data Format**: Easy parsing of complex data structures
-- **Notification-based**: Efficient real-time updates without polling
-- **Command Interface**: Send text commands for specific actions
-- **Error Handling**: Robust connection management and reconnection
-
-### Technical Implementation
-
-The BLE interface runs on the same FreeRTOS task architecture:
-
-- **Core 1 Task**: Low priority task alongside WiFi and VESC communication
-- **Thread-safe**: Semaphore-protected access to sensor data
-- **GATT Services**: Standard Bluetooth services with custom characteristics
-- **Memory Efficient**: Optimized data structures for embedded systems
-- **Auto-advertising**: Automatic restart after disconnection
+In the status sample, `battery_a` comes from VESC input current and `motor_a` from motor phase current. `duty` is a fraction, so `0.5` means 50%. `watt_hours` and `watt_hours_charged` are cumulative VESC counters.
 
 ## Legal Compliance
 

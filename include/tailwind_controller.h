@@ -92,6 +92,8 @@ struct SharedSensorData
   float cadence_rps;
   float torque_nm;
   float filtered_torque;
+  float rider_power_w;
+  float target_current;
   int current_mode;
   bool motor_enabled;
   unsigned long last_update;
@@ -101,7 +103,9 @@ struct SharedVescData
 {
   float speed_kmh;
   bool data_valid;
+  bool telemetry_valid;
   float actual_current;
+  float input_current;
   float battery_voltage;
   float battery_percentage;
 
@@ -112,6 +116,7 @@ struct SharedVescData
   float temp_motor;
   float amp_hours;
   float watt_hours;
+  float watt_hours_charged;
 
   unsigned long last_update;
 };
@@ -135,9 +140,6 @@ extern SharedMotorCommand sharedMotorCommand;
 
 // WiFi Web Interface - enable to get browser-based monitoring
 extern bool enable_wifi_telemetry; // Enable WiFi Web Interface with logging
-
-// BLE Interface - enable to get Bluetooth Low Energy monitoring
-extern bool enable_ble_telemetry; // Enable BLE Interface with telemetry
 
 // VESC Bridge Mode - enable to use ESP32 as direct VESC access bridge
 extern bool vesc_bridge_mode; // Enable VESC Bridge Mode (disables tailwind controller)

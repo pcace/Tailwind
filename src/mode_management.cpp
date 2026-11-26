@@ -6,7 +6,7 @@
 #include "wifi_telemetry.h"
 
 namespace {
-// The sensor task owns the active mode and applies requests from BLE.
+// The sensor task owns the active mode and applies requests from other tasks.
 std::atomic<int> requested_mode{-1};
 }
 

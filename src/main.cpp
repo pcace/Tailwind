@@ -39,9 +39,6 @@
 // WiFi Web Interface Integration
 #include "wifi_telemetry.h"
 
-// BLE (Bluetooth Low Energy) Interface Integration
-#include "ble_telemetry.h"
-
 // VESC Bridge Mode Integration
 #include "vesc_bridge.h"
 
@@ -170,6 +167,7 @@ void sensorTask(void *pvParameters)
 
     // 7. Motor status and safety checks
     update_motor_status();
+    const float commanded_current = motor_enabled ? target_current_amps : 0.0f;
 
     // 8. Update shared sensor data (thread-safe)
     if (xSemaphoreTake(dataUpdateSemaphore, pdMS_TO_TICKS(10)) == pdTRUE)
@@ -178,6 +176,8 @@ void sensorTask(void *pvParameters)
       sharedSensorData.cadence_rps = current_cadence_rps;
       sharedSensorData.torque_nm = crank_torque_nm;
       sharedSensorData.filtered_torque = filtered_torque;
+      sharedSensorData.rider_power_w = human_power_watts;
+      sharedSensorData.target_current = commanded_current;
       sharedSensorData.current_mode = current_mode;
       sharedSensorData.motor_enabled = motor_enabled;
       sharedSensorData.last_update = millis();
@@ -187,7 +187,7 @@ void sensorTask(void *pvParameters)
     // 10. Send motor command (thread-safe)
     if (xSemaphoreTake(motorCommandSemaphore, pdMS_TO_TICKS(5)) == pdTRUE)
     {
-      sharedMotorCommand.target_current = motor_enabled ? target_current_amps : 0.0f;
+      sharedMotorCommand.target_current = commanded_current;
       sharedMotorCommand.command_ready = true;
       sharedMotorCommand.timestamp = millis();
       xSemaphoreGive(motorCommandSemaphore);
@@ -231,15 +231,6 @@ void vescTask(void *pvParameters)
 
     // 1. Query VESC data (speed, telemetry) - BLOCKING operation
     update_vesc_data(); // This can take 50ms without affecting Core 0!
-
-    // 2. Update shared VESC data (thread-safe)
-    if (xSemaphoreTake(dataUpdateSemaphore, pdMS_TO_TICKS(20)) == pdTRUE)
-    {
-      sharedVescData.actual_current = actual_current_amps;
-      sharedVescData.battery_voltage = battery_voltage;
-      sharedVescData.battery_percentage = battery_percentage;
-      xSemaphoreGive(dataUpdateSemaphore);
-    }
 
     // 3. Send motor command if ready (thread-safe)
     if (xSemaphoreTake(motorCommandSemaphore, pdMS_TO_TICKS(10)) == pdTRUE)
@@ -388,22 +379,7 @@ void setup()
   // *** WiFi Web Interface Integration ***
   if (enable_wifi_telemetry)
   {
-    Serial.println("Setting up WiFi Web Interface...");
     setupWifiTelemetry();
-    Serial.println("WiFi Web Interface will start after WiFi connection");
-    addLogMessage("Tailwind Controller started - Version: " + String(__DATE__));
-  }
-
-  // *** BLE (Bluetooth Low Energy) Interface Integration ***
-  if (enable_ble_telemetry)
-  {
-    Serial.println("Setting up BLE Interface...");
-    setupBLETelemetry();
-    Serial.println("BLE Interface will start advertising");
-    if (enable_wifi_telemetry)
-    {
-      addLogMessage("BLE Interface enabled - Device: " + String(BLE_DEVICE_NAME));
-    }
   }
 
   Serial.println("Multi-Core tasks created successfully!");
