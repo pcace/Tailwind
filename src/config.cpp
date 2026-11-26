@@ -40,6 +40,11 @@ AssistProfile AVAILABLE_PROFILES[] = {
      "Motor assistance off",
      false,
      {}},
+
+    {"Custom",
+     "Adjustable speed-dependent assist",
+     false,
+     {}}, // Custom reads the saved curve at runtime.
 };
 
 // Calculate number of active profiles at compile time

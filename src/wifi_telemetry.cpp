@@ -2,10 +2,8 @@
 #include "tailwind_controller.h"
 #include "wifi_page.h"
 
-#include <Preferences.h>
 #include <WiFi.h>
 #include <esp_http_server.h>
-#include <esp_random.h>
 #include <esp_wifi.h>
 #include <cmath>
 #include <cstdio>
@@ -14,38 +12,15 @@
 namespace
 {
 constexpr char ap_name[] = "Tailwind";
+constexpr char ap_password[] = "tailwind";
 constexpr char ap_host[] = "192.168.4.1";
 constexpr char ap_host_with_port[] = "192.168.4.1:80";
 constexpr char ap_origin[] = "http://192.168.4.1";
 constexpr char ap_origin_with_port[] = "http://192.168.4.1:80";
-constexpr char password_key[] = "ap-pass";
-constexpr char hex_digits[] = "0123456789abcdef";
 constexpr char form_content_type[] = "application/x-www-form-urlencoded";
-constexpr size_t password_length = 24;
 constexpr unsigned long snapshot_expiry_ms = 1000;
 
 const IPAddress ap_ip(192, 168, 4, 1);
-
-bool loadAccessPointPassword(char (&password)[password_length + 1])
-{
-  Preferences preferences;
-  if (!preferences.begin("tailwind-wifi", false)) {
-    return false;
-  }
-  if (preferences.isKey(password_key)) {
-    return preferences.getString(password_key, password, sizeof(password)) == sizeof(password) &&
-           std::strspn(password, hex_digits) == password_length;
-  }
-
-  uint8_t random_bytes[password_length / 2];
-  esp_fill_random(random_bytes, sizeof(random_bytes));
-  for (size_t i = 0; i < sizeof(random_bytes); ++i) {
-    password[2 * i] = hex_digits[random_bytes[i] >> 4];
-    password[2 * i + 1] = hex_digits[random_bytes[i] & 0x0F];
-  }
-  password[password_length] = '\0';
-  return preferences.putString(password_key, password) == password_length;
-}
 
 bool startAccessPoint()
 {
@@ -55,14 +30,8 @@ bool startAccessPoint()
     return false;
   }
 
-  // Generate a password with the Wi-Fi radio active so the RNG has entropy.
-  char password[password_length + 1] = {};
-  if (!loadAccessPointPassword(password)) {
-    Serial.println("WiFi: Could not load or store access point credentials");
-    return false;
-  }
   // Keep the ESP32's default SoftAP address and DHCP configuration.
-  if (!WiFi.softAP(ap_name, password, 6, false, 2) || WiFi.softAPIP() != ap_ip) {
+  if (!WiFi.softAP(ap_name, ap_password, 6, false, 2) || WiFi.softAPIP() != ap_ip) {
     Serial.println("WiFi: Access point setup failed");
     return false;
   }
@@ -73,7 +42,6 @@ bool startAccessPoint()
   }
 
   Serial.printf("WiFi: %s at http://%s\n", ap_name, ap_host);
-  Serial.printf("WiFi: Tailwind passphrase: %s\n", password);
   return true;
 }
 
@@ -121,7 +89,7 @@ esp_err_t handleStatus(httpd_req_t *request)
   const bool vesc_fresh = vesc.telemetry_valid && vesc.last_update != 0 &&
                           now - vesc.last_update < snapshot_expiry_ms;
   const bool mode_valid = sensor_fresh && sensor.current_mode >= MODE_URBAN &&
-                          sensor.current_mode <= MODE_OFF;
+                          sensor.current_mode <= MODE_CUSTOM;
   const char *motor_enabled = mode_valid ? (sensor.motor_enabled ? "true" : "false") : "null";
 
   char response[640];
@@ -159,7 +127,7 @@ esp_err_t handleStatus(httpd_req_t *request)
   return result;
 }
 
-esp_err_t handleMode(httpd_req_t *request)
+bool writeAuthorized(httpd_req_t *request)
 {
   char host[sizeof(ap_host_with_port)];
   char marker[2];
@@ -167,42 +135,159 @@ esp_err_t handleMode(httpd_req_t *request)
       (std::strcmp(host, ap_host) != 0 && std::strcmp(host, ap_host_with_port) != 0) ||
       httpd_req_get_hdr_value_str(request, "X-Tailwind-Request", marker, sizeof(marker)) != ESP_OK ||
       std::strcmp(marker, "1") != 0) {
-    return sendJson(request, "403 Forbidden", R"({"error":"forbidden"})");
+    return false;
   }
 
   char origin[sizeof(ap_origin_with_port)];
   if (httpd_req_get_hdr_value_len(request, "Origin") > 0 &&
       (httpd_req_get_hdr_value_str(request, "Origin", origin, sizeof(origin)) != ESP_OK ||
        (std::strcmp(origin, ap_origin) != 0 && std::strcmp(origin, ap_origin_with_port) != 0))) {
+    return false;
+  }
+  return true;
+}
+
+bool contentTypeMatches(httpd_req_t *request, const char *expected)
+{
+  char content_type[64];
+  const size_t media_type_length = std::strlen(expected);
+  return httpd_req_get_hdr_value_str(request, "Content-Type", content_type, sizeof(content_type)) == ESP_OK &&
+         std::strncmp(content_type, expected, media_type_length) == 0 &&
+         (content_type[media_type_length] == '\0' || content_type[media_type_length] == ';');
+}
+
+bool readBody(httpd_req_t *request, char *body, size_t length)
+{
+  size_t received = 0;
+  while (received < length) {
+    const int count = httpd_req_recv(request, body + received, length - received);
+    if (count <= 0) {
+      return false;
+    }
+    received += count;
+  }
+  return true;
+}
+
+esp_err_t handleMode(httpd_req_t *request)
+{
+  if (!writeAuthorized(request)) {
     return sendJson(request, "403 Forbidden", R"({"error":"forbidden"})");
   }
-
-  char content_type[64];
-  constexpr size_t media_type_length = sizeof(form_content_type) - 1;
-  if (httpd_req_get_hdr_value_str(request, "Content-Type", content_type, sizeof(content_type)) != ESP_OK ||
-      std::strncmp(content_type, form_content_type, media_type_length) != 0 ||
-      (content_type[media_type_length] != '\0' && content_type[media_type_length] != ';')) {
+  if (!contentTypeMatches(request, form_content_type)) {
     return sendJson(request, "415 Unsupported Media Type", R"({"error":"expected_urlencoded_mode"})");
   }
-
   char body[6];
   if (request->content_len != sizeof(body)) {
     return sendJson(request, "400 Bad Request", R"({"error":"invalid_mode"})");
   }
-  size_t received = 0;
-  while (received < sizeof(body)) {
-    const int count = httpd_req_recv(request, body + received, sizeof(body) - received);
-    if (count <= 0) {
-      return ESP_FAIL;
-    }
-    received += count;
+  if (!readBody(request, body, sizeof(body))) {
+    return ESP_FAIL;
   }
-  if (std::memcmp(body, "mode=", 5) != 0 || body[5] < '0' + MODE_URBAN || body[5] > '0' + MODE_OFF) {
+  if (std::memcmp(body, "mode=", 5) != 0 || body[5] < '0' + MODE_URBAN || body[5] > '0' + MODE_CUSTOM) {
     return sendJson(request, "400 Bad Request", R"({"error":"invalid_mode"})");
   }
 
   changeAssistMode(body[5] - '0');
   return sendJson(request, "202 Accepted", R"({"queued":true})");
+}
+
+struct ProfileArrayText
+{
+  // At most one separator per number, with the last separator replaced by NUL.
+  char text[NUM_SPEED_POINTS * sizeof(JsonNumber)];
+};
+
+template <typename ReadValue>
+ProfileArrayText formatProfileArray(ReadValue read_value)
+{
+  ProfileArrayText result{};
+  char *output = result.text;
+  for (size_t i = 0; i < NUM_SPEED_POINTS; ++i) {
+    if (i > 0) {
+      *output++ = ',';
+    }
+    const JsonNumber number = formatMetric(read_value(i), true);
+    const size_t length = std::strlen(number.text);
+    std::memcpy(output, number.text, length);
+    output += length;
+  }
+  *output = '\0';
+  return result;
+}
+
+esp_err_t handleProfiles(httpd_req_t *request)
+{
+  const CustomAssistCurve curve = getCustomAssistCurve();
+  const auto speeds = formatProfileArray([](size_t i) { return SPEED_POINTS_KMH[i]; });
+  const auto urban = formatProfileArray([](size_t i) {
+    return std::round(AVAILABLE_PROFILES[MODE_URBAN].profile[i] * 10.0f);
+  });
+  const auto custom = formatProfileArray([&curve](size_t i) { return curve[i]; });
+
+  char response[640];
+  const int length = std::snprintf(response, sizeof(response),
+                                   "{\"speed_kmh\":[%s],\"urban_tenths\":[%s],\"custom_tenths\":[%s],"
+                                   "\"max_gain_tenths\":%u,\"max_power_w\":%.9g}",
+                                   speeds.text, urban.text, custom.text,
+                                   static_cast<unsigned>(MAX_CUSTOM_GAIN_TENTHS),
+                                   static_cast<double>(MAX_MOTOR_POWER));
+  if (length < 0 || static_cast<size_t>(length) >= sizeof(response)) {
+    return sendJson(request, "500 Internal Server Error", R"({"error":"profiles_unavailable"})");
+  }
+  return sendJson(request, "200 OK", response);
+}
+
+bool parseCustomCurve(const char *body, size_t length, CustomAssistCurve &curve)
+{
+  const char *next = body;
+  const char *end = body + length;
+  for (size_t i = 0; i < curve.size(); ++i) {
+    if (i > 0 && (next == end || *next++ != ',')) {
+      return false;
+    }
+    if (next == end || *next < '0' || *next > '9') {
+      return false;
+    }
+    unsigned value = *next++ - '0';
+    while (next != end && *next >= '0' && *next <= '9') {
+      if (value == 0) {
+        return false; // A leading zero is only valid on its own.
+      }
+      value = value * 10 + (*next++ - '0');
+      if (value > MAX_CUSTOM_GAIN_TENTHS) {
+        return false;
+      }
+    }
+    curve[i] = static_cast<uint8_t>(value);
+  }
+  return next == end;
+}
+
+esp_err_t handleSaveProfile(httpd_req_t *request)
+{
+  if (!writeAuthorized(request)) {
+    return sendJson(request, "403 Forbidden", R"({"error":"forbidden"})");
+  }
+  if (!contentTypeMatches(request, "text/plain")) {
+    return sendJson(request, "415 Unsupported Media Type", R"({"error":"expected_plain_text"})");
+  }
+
+  char body[NUM_SPEED_POINTS * 4 - 1]; // At most three digits per value and the separators.
+  if (request->content_len == 0 || request->content_len > sizeof(body)) {
+    return sendJson(request, "400 Bad Request", R"({"error":"invalid_profile"})");
+  }
+  if (!readBody(request, body, request->content_len)) {
+    return ESP_FAIL;
+  }
+  CustomAssistCurve curve{};
+  if (!parseCustomCurve(body, request->content_len, curve)) {
+    return sendJson(request, "400 Bad Request", R"({"error":"invalid_profile"})");
+  }
+  if (!saveCustomAssistCurve(curve)) {
+    return sendJson(request, "500 Internal Server Error", R"({"error":"storage_failed"})");
+  }
+  return sendJson(request, "200 OK", R"({"saved":true})");
 }
 
 esp_err_t handlePage(httpd_req_t *request)
@@ -231,6 +316,8 @@ bool startHttpServer()
     {"/", HTTP_GET, handlePage, nullptr},
     {"/api/status", HTTP_GET, handleStatus, nullptr},
     {"/api/mode", HTTP_POST, handleMode, nullptr},
+    {"/api/profiles", HTTP_GET, handleProfiles, nullptr},
+    {"/api/profiles", HTTP_POST, handleSaveProfile, nullptr},
   };
   for (const httpd_uri_t &route : routes) {
     if (httpd_register_uri_handler(server, &route) != ESP_OK) {

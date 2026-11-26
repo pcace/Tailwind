@@ -140,6 +140,7 @@ void tailwind_setup()
 {
   // Initialize assist profiles from configuration
   initializeAssistProfiles();
+  loadCustomAssistCurve();
 
   // Pin configurations
   pinMode(LIGHT_PIN, OUTPUT);

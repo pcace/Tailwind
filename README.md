@@ -26,6 +26,7 @@ An e-bike controller built on ESP32 with dual-core architecture for responsive p
   - [Serial Monitor Output](#serial-monitor-output)
 - [WiFi Web Interface](#wifi-web-interface)
   - [How to Access](#how-to-access)
+  - [Assist Profiles](#assist-profiles)
   - [Ride Recording](#ride-recording)
   - [HTTP API](#http-api)
 - [Legal Compliance](#legal-compliance)
@@ -68,10 +69,11 @@ The ESP32's dual-core processor is utilized for optimal performance:
 | Mode | API ID | GPIO4 LED flashes | Assistance |
 |------|--------|-------------------|------------|
 | Urban | `0` | 1 | Default at startup. Multiplies rider power using the speed curve below. |
-| Max | `1` | 2 | Requests up to 350 W of assistance once forward pedaling is confirmed, subject to the 15 A motor-current command limit and VESC limits. |
+| Max Power | `1` | 2 | Requests up to 350 W of assistance once forward pedaling is confirmed, subject to the 15 A motor-current command limit and VESC limits. |
 | Aus | `2` | 3 | Disables motor assistance. |
+| Custom | `3` | 4 | Multiplies rider power using the curve saved from the web interface. |
 
-Backpedal one full revolution (32 valid reverse sensor transitions) to advance through Urban → Max → Aus → Urban. Forward pedaling or a pause clears a partial revolution. Max turns on the GPIO2 status LED.
+Backpedal one full revolution (32 valid reverse sensor transitions) to advance through Urban → Max Power → Aus → Custom → Urban. Forward pedaling or a pause clears a partial revolution. Max Power turns on the GPIO2 status LED.
 
 | Speed (km/h) | 0 | 5 | 10 | 15 | 20 | 25 | 30 | 35 | 40 |
 |--------------|---|---|----|----|----|----|----|----|----|
@@ -211,9 +213,12 @@ The debug output shows:
 
 ### How to Access
 
-1. Open the ESP32 USB serial monitor at 115200 baud and read the WPA2 password shown at startup. The ESP32 generates the password once and stores it locally for future boots.
-2. Join the WiFi network `Tailwind`. It is a local access point without internet access.
-3. Open [http://192.168.4.1](http://192.168.4.1) in your browser. The page shows live telemetry and lets you select Aus, Urban, or Max. The firmware still starts in Urban and accepts reverse pedaling for mode selection.
+1. Join the local WiFi network `Tailwind` with the WPA2 password `tailwind`.
+2. Open [http://192.168.4.1](http://192.168.4.1) in your browser. The page shows live telemetry and lets you select Urban, Max Power, Aus, or Custom. The firmware starts in Urban and accepts reverse pedaling for mode selection.
+
+### Assist Profiles
+
+Select a curve from the profile menu. Custom can be edited by dragging the points or entering the multipliers directly. It starts with the Urban values at 0, 5, 10, 15, 20, 30, and 40 km/h and interpolates linearly between them. Each multiplier ranges from 0.0 to 10.0 in steps of 0.1. The saved curve persists on the ESP32 across power cycles. Choose the Custom ride mode to use the curve.
 
 ### Ride Recording
 
@@ -227,8 +232,10 @@ The ride shows net energy from the change in consumed Wh minus the change in ret
 | --- | --- | --- |
 | GET | `/api/status` | JSON sample with mode, pedal data, commanded phase current, and VESC telemetry. Unavailable VESC values are `null`. |
 | POST | `/api/mode` | Queues a mode change and returns HTTP 202. The next status sample confirms the active mode. |
+| GET | `/api/profiles` | Returns curve speeds, Urban and saved Custom multipliers in tenths, and the Max Power ceiling. |
+| POST | `/api/profiles` | Stores a Custom curve and returns HTTP 200. |
 
-For a mode change, send `mode=0` (Urban), `mode=1` (Max), or `mode=2` (Aus) as `application/x-www-form-urlencoded` with the header `X-Tailwind-Request: 1`. The API accepts the write through the fixed AP IP. It uses the same mode selection logic as the rest of the controller.
+For a mode change, send `mode=0` (Urban), `mode=1` (Max Power), `mode=2` (Aus), or `mode=3` (Custom) as `application/x-www-form-urlencoded`. To save a curve, send seven comma-separated integers from 0 to 100 as `text/plain`, for example `60,40,30,35,45,65,85` for the default values. Both writes use the fixed AP IP and the header `X-Tailwind-Request: 1`.
 
 In the status sample, `battery_a` comes from VESC input current and `motor_a` from motor phase current. `duty` is a fraction, so `0.5` means 50%. `watt_hours` and `watt_hours_charged` are cumulative VESC counters.
 

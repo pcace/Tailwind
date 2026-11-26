@@ -2,6 +2,7 @@
 #define TAILWIND_CONTROLLER_H
 
 #include <Arduino.h>
+#include <array>
 
 // ESP32 FreeRTOS Headers - verwende die echten ESP32 FreeRTOS Typen
 #ifdef ESP32
@@ -156,8 +157,15 @@ enum AssistMode
 {
   MODE_URBAN = 0,
   MODE_MAX,
-  MODE_OFF
+  MODE_OFF,
+  MODE_CUSTOM
 };
+
+constexpr uint8_t MAX_CUSTOM_GAIN_TENTHS = 100;
+using CustomAssistCurve = std::array<uint8_t, NUM_SPEED_POINTS>;
+CustomAssistCurve getCustomAssistCurve();
+bool saveCustomAssistCurve(const CustomAssistCurve &curve);
+void loadCustomAssistCurve();
 
 struct AssistProfile
 {

@@ -31,15 +31,17 @@ void update_motor_status() {
   bool pas_active = (now - last_pedal_activity) < PEDAL_TIMEOUT_MS;
   bool torque_present = abs(filtered_torque) > 0.1;  // REDUCED: Minimum torque 0.5 Nm for better start-up
   bool cadence_valid = current_cadence_rpm > 1.0; // REDUCED: Minimum cadence 2 RPM for better start-up
-  bool mode_allows_assist = current_mode == MODE_URBAN || current_mode == MODE_MAX;
+  bool mode_allows_assist = current_mode == MODE_URBAN || current_mode == MODE_MAX ||
+                            (current_mode == MODE_CUSTOM && target_current_amps > 0.0f);
   bool forward_pedaling = pedal_direction > 0; // Only forward pedaling
   
   // Additional safety: Check VESC data freshness in multi-core environment
-  bool vesc_data_fresh = current_mode != MODE_MAX;
+  const bool needs_valid_speed = current_mode == MODE_MAX || current_mode == MODE_CUSTOM;
+  bool vesc_data_fresh = !needs_valid_speed;
   if (xSemaphoreTake(dataUpdateSemaphore, pdMS_TO_TICKS(1)) == pdTRUE) {
-    // Max needs valid speed data before requesting full assistance.
+    // Max and Custom require a valid speed measurement before assisting.
     vesc_data_fresh = (now - sharedVescData.last_update) < 1000 &&
-                     (current_mode != MODE_MAX || sharedVescData.data_valid);
+                     (!needs_valid_speed || sharedVescData.data_valid);
     xSemaphoreGive(dataUpdateSemaphore);
   }
   

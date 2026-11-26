@@ -5,19 +5,33 @@
 // =============================================================================
 
 void calculate_speed_dependent_assist() {
-  if (!vesc_data_valid || current_speed_kmh <= SPEED_POINTS_KMH[0]) {
-    dynamic_assist_factor = ASSIST_PROFILES[current_mode][0];
+  const int mode = current_mode;
+  const bool is_custom = mode == MODE_CUSTOM;
+  const bool speed_valid = vesc_data_valid;
+  const float speed_kmh = current_speed_kmh;
+  if (is_custom && !speed_valid) {
+    dynamic_assist_factor = 0.0f;
+    return;
+  }
+
+  const CustomAssistCurve custom_curve = is_custom ? getCustomAssistCurve() : CustomAssistCurve{};
+  const auto assist_at = [&](int index) {
+    return is_custom ? custom_curve[index] / 10.0f : ASSIST_PROFILES[mode][index];
+  };
+
+  if (!speed_valid || speed_kmh <= SPEED_POINTS_KMH[0]) {
+    dynamic_assist_factor = assist_at(0);
     return;
   }
 
   // Urban keeps the established rolling assist up to 5 km/h.
-  if (current_mode == MODE_URBAN && current_speed_kmh <= SPEED_POINTS_KMH[1]) {
-    dynamic_assist_factor = ASSIST_PROFILES[current_mode][1];
+  if (mode == MODE_URBAN && speed_kmh <= SPEED_POINTS_KMH[1]) {
+    dynamic_assist_factor = assist_at(1);
     return;
   }
 
-  if (current_speed_kmh >= SPEED_POINTS_KMH[NUM_SPEED_POINTS - 1]) {
-    dynamic_assist_factor = ASSIST_PROFILES[current_mode][NUM_SPEED_POINTS - 1];
+  if (speed_kmh >= SPEED_POINTS_KMH[NUM_SPEED_POINTS - 1]) {
+    dynamic_assist_factor = assist_at(NUM_SPEED_POINTS - 1);
     return;
   }
   
@@ -27,8 +41,8 @@ void calculate_speed_dependent_assist() {
   
   // Find correct interval
   for (int i = 0; i < NUM_SPEED_POINTS - 1; i++) {
-    if (current_speed_kmh >= SPEED_POINTS_KMH[i] && 
-        current_speed_kmh <= SPEED_POINTS_KMH[i + 1]) {
+    if (speed_kmh >= SPEED_POINTS_KMH[i] &&
+        speed_kmh <= SPEED_POINTS_KMH[i + 1]) {
       lower_index = i;
       upper_index = i + 1;
       break;
@@ -38,11 +52,11 @@ void calculate_speed_dependent_assist() {
   // Linear interpolation between the two support points
   float speed_low = SPEED_POINTS_KMH[lower_index];
   float speed_high = SPEED_POINTS_KMH[upper_index];
-  float assist_low = ASSIST_PROFILES[current_mode][lower_index];
-  float assist_high = ASSIST_PROFILES[current_mode][upper_index];
+  float assist_low = assist_at(lower_index);
+  float assist_high = assist_at(upper_index);
   
   // Interpolation factor (0.0 = lower point, 1.0 = upper point)
-  float interpolation_factor = (current_speed_kmh - speed_low) / (speed_high - speed_low);
+  float interpolation_factor = (speed_kmh - speed_low) / (speed_high - speed_low);
   
   // Linear interpolation: y = y1 + t × (y2 - y1)
   dynamic_assist_factor = assist_low + interpolation_factor * (assist_high - assist_low);
