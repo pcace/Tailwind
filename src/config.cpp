@@ -30,35 +30,25 @@ bool vesc_bridge_mode = false; // Set to true to enable VESC Bridge Mode
 // =============================================================================
 
 // Speed interpolation points [km/h]
-float SPEED_POINTS_KMH[NUM_SPEED_POINTS] = {0, 5, 10, 15, 20, 30};
+float SPEED_POINTS_KMH[NUM_SPEED_POINTS] = {0, 5, 10, 15, 20, 30, 40};
 
-// Available assist profiles - comment out profiles you don't want to use
-// The system will automatically use only the enabled profiles
+// Profile order matches AssistMode and the BLE mode IDs.
 AssistProfile AVAILABLE_PROFILES[] = {
 
     {"Urban",
-     "City riding",
+     "City riding with steadier assist at speed",
      false,
-     {6, 4, 2, 1.0, 3, 6}},
+     {6, 4, 3, 3.5, 4.5, 6.5, 8.5}},
 
-    {"Linear",
-     "Linear power",
+    {"Max",
+     "Full available assist after pedal detection",
      true,
-     {3.0, 3.0, 3.0, 3.0, 3.0, 3.0}},
+     {}}, // Max uses the power ceiling instead of a speed curve.
 
-    {"Touring Eco",
-     "Eco touring",
-     true,
-     {1.8, 1.2, 1.0, 0.8, 0.7, 0.5}},
-
-    {"No Assist",
-     "No assist",
+    {"Aus",
+     "Motor assistance off",
      false,
-     {0.0, 0.0, 0.0, 0.0, 0.0, 0.0}},
-    {"Full Power",
-     "Full Power",
-     false,
-     {100.0, 100.0, 100.0, 100.0, 100.0, 100.0}},
+     {}},
 };
 
 // Calculate number of active profiles at compile time
@@ -94,6 +84,7 @@ void initializeAssistProfiles()
 
 // PAS sensor state variables
 int pos = 0;
+int reverse_steps = 0;
 int a = 0, b = 0;
 int pedal_direction = 0; // 1=forward, -1=backward, 0=standstill
 unsigned long last_pulse_time = 0;
@@ -131,7 +122,7 @@ float target_current_amps = 0.0;
 float actual_current_amps = 0.0;
 
 // System status
-int current_mode = 0;
+int current_mode = MODE_URBAN;
 bool motor_enabled = false;
 bool lightOn = false;
 unsigned long last_pedal_activity = 0;
@@ -155,7 +146,7 @@ int vescDelayBetweenList = 9999;
 // =============================================================================
 // DEBUG MODE VARIABLES
 // =============================================================================
-bool debug_mode = true;             // Set to true to enable debug mode
+bool debug_mode = false;            // Keep startup torque calibration enabled
 bool debug_simulate_pas = false;    // Simulate PAS sensor when in debug mode
 bool debug_simulate_torque = false; // Simulate torque sensor when in debug mode
 

@@ -1,5 +1,6 @@
 #include "tailwind_controller.h"
 #include <VescUart.h>
+#include <atomic>
 
 // External VESC UART instance (defined in main.cpp)
 extern VescUart vescUart;
@@ -89,26 +90,46 @@ void startup_battery_indicator()
 // MODE CHANGE INDICATOR
 // =============================================================================
 
+namespace {
+std::atomic<int> requested_blinks{0};
+}
+
 void indicate_mode_change(int mode)
 {
-  // Blink LED (mode + 1) times to show which mode is active
-  // Mode 0 = 1 blink, Mode 1 = 2 blinks, etc.
-  int blinks = mode + 1;
-  
-  // Small delay before starting blinks
-  delay(200);
-  
-  // Show mode through LED blinks
-  for (int i = 0; i < blinks; i++)
+  requested_blinks.store(mode + 1, std::memory_order_relaxed);
+}
+
+bool update_mode_indicator()
+{
+  static int remaining_phases = -1;
+  static unsigned long phase_start = 0;
+  static unsigned long phase_duration = 0;
+  const unsigned long now = millis();
+  const int blinks = requested_blinks.exchange(0, std::memory_order_relaxed);
+  if (blinks > 0)
   {
-    digitalWrite(BATTERY_LED_PIN, HIGH);
-    delay(150); // 0.15s on
+    remaining_phases = blinks * 2;
+    phase_start = now;
+    phase_duration = 200;
     digitalWrite(BATTERY_LED_PIN, LOW);
-    delay(150); // 0.15s off
   }
-  
-  // Ensure LED is off after sequence
-  digitalWrite(BATTERY_LED_PIN, LOW);
+  if (remaining_phases < 0)
+  {
+    return false;
+  }
+  if (now - phase_start >= phase_duration)
+  {
+    if (remaining_phases == 0)
+    {
+      remaining_phases = -1;
+      return false;
+    }
+    digitalWrite(BATTERY_LED_PIN, remaining_phases % 2 == 0 ? HIGH : LOW);
+    --remaining_phases;
+    phase_start = now;
+    phase_duration = 150;
+  }
+  return true;
 }
 
 // =============================================================================
@@ -131,6 +152,8 @@ void tailwind_setup()
   // PAS sensor pins as input with pull-up
   pinMode(PAS_PIN_A, INPUT_PULLUP);
   pinMode(PAS_PIN_B, INPUT_PULLUP);
+  a = digitalRead(PAS_PIN_A);
+  b = digitalRead(PAS_PIN_B);
 
   // Enable hardware interrupts for PAS sensors
   attachInterrupt(digitalPinToInterrupt(PAS_PIN_A), pas_interrupt_handler, CHANGE);

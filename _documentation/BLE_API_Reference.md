@@ -42,7 +42,7 @@ Main service for all Tailwind telemetry data.
 ### System Status JSON Format
 ```json
 {
-  "mode": 2,
+  "mode": 0,
   "mode_name": "Urban",
   "motor_enabled": true,
   "timestamp": 123456789
@@ -55,7 +55,7 @@ Service für Steuerung und Kontrolle des E-Bikes.
 
 | Characteristic | UUID | Type | Format | Beschreibung |
 |----------------|------|------|--------|-------------|
-| Mode Control | ...b001 | Write | UInt8 (1 byte) | Mode-Nummer zum Wechseln |
+| Mode Control | ...b001 | Write | UInt8 (1 byte) | `0` für Urban, `1` für Max, `2` für Aus |
 | Mode List | ...b002 | Read/Notify | JSON String | Verfügbare Modi |
 | Command | ...b003 | Write | String | Text-Kommandos |
 
@@ -65,24 +65,31 @@ Service für Steuerung und Kontrolle des E-Bikes.
   "modes": [
     {
       "index": 0,
-      "name": "Linear",
-      "description": "linear profile",
-      "hasLight": true
+      "name": "Urban",
+      "hasLight": false
     },
     {
       "index": 1,
-      "name": "Touring",
-      "description": "Fast start-up, gentle slope to 30km/h",
+      "name": "Max",
+      "hasLight": true
+    },
+    {
+      "index": 2,
+      "name": "Aus",
       "hasLight": false
     }
   ]
 }
 ```
 
+Beim Einschalten ist Urban aktiv. Eine vollständige Rückwärtsumdrehung schaltet in der Reihenfolge Urban → Max → Aus → Urban weiter. Die GPIO4-LED blinkt zur Bestätigung entsprechend der Modus-ID einmal, zweimal oder dreimal. `hasLight` beschreibt den Zustand des GPIO2-Ausgangs im aktiven Modus.
+
+`System Status` meldet den aktiven Modus, sobald der Sensor-Task die BLE-Anforderung übernommen hat.
+
 ### Verfügbare Kommandos
 - `GET_STATUS` - Aktuelle Status-Updates anfordern
 - `GET_MODES` - Mode-Liste anfordern
-- `EMERGENCY_STOP` - Notfall-Stop (wechselt zu "No Assist" Mode)
+- `EMERGENCY_STOP` - Schaltet in den Modus Aus (`2`) und deaktiviert die Motorunterstützung.
 
 ## Datenformat-Details
 
@@ -135,7 +142,7 @@ override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: Blueto
     }
 }
 
-// Mode wechseln (Beispiel: Mode 2)
+// Motorunterstützung ausschalten (Aus, Modus 2)
 val modeCharacteristic = gatt.getService(CONTROL_SERVICE_UUID)
     .getCharacteristic(MODE_CONTROL_CHAR_UUID)
 modeCharacteristic.value = byteArrayOf(2)
@@ -180,7 +187,7 @@ func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CB
     }
 }
 
-// Mode wechseln (Beispiel: Mode 2)
+// Motorunterstützung ausschalten (Aus, Modus 2)
 if let modeChar = peripheral.services?.first(where: { $0.uuid == controlServiceUUID })?
     .characteristics?.first(where: { $0.uuid == modeControlCharUUID }) {
     let modeData = Data([2])

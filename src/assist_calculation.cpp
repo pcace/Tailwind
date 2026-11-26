@@ -5,9 +5,19 @@
 // =============================================================================
 
 void calculate_speed_dependent_assist() {
-  // Fallback: If no valid VESC data, use first value (0 km/h)
-  if (!vesc_data_valid) {
+  if (!vesc_data_valid || current_speed_kmh <= SPEED_POINTS_KMH[0]) {
     dynamic_assist_factor = ASSIST_PROFILES[current_mode][0];
+    return;
+  }
+
+  // Urban keeps the established rolling assist up to 5 km/h.
+  if (current_mode == MODE_URBAN && current_speed_kmh <= SPEED_POINTS_KMH[1]) {
+    dynamic_assist_factor = ASSIST_PROFILES[current_mode][1];
+    return;
+  }
+
+  if (current_speed_kmh >= SPEED_POINTS_KMH[NUM_SPEED_POINTS - 1]) {
+    dynamic_assist_factor = ASSIST_PROFILES[current_mode][NUM_SPEED_POINTS - 1];
     return;
   }
   
@@ -25,19 +35,6 @@ void calculate_speed_dependent_assist() {
     }
   }
   
-  // Speed outside defined range?
-  if (current_speed_kmh <= SPEED_POINTS_KMH[0]) {
-    // Below minimum speed → first value
-    dynamic_assist_factor = ASSIST_PROFILES[current_mode][0];
-    return;
-  }
-  
-  if (current_speed_kmh >= SPEED_POINTS_KMH[NUM_SPEED_POINTS - 1]) {
-    // Above maximum speed → last value  
-    dynamic_assist_factor = ASSIST_PROFILES[current_mode][NUM_SPEED_POINTS - 1];
-    return;
-  }
-  
   // Linear interpolation between the two support points
   float speed_low = SPEED_POINTS_KMH[lower_index];
   float speed_high = SPEED_POINTS_KMH[upper_index];
@@ -49,9 +46,6 @@ void calculate_speed_dependent_assist() {
   
   // Linear interpolation: y = y1 + t × (y2 - y1)
   dynamic_assist_factor = assist_low + interpolation_factor * (assist_high - assist_low);
-  
-  // Safety limit
-  dynamic_assist_factor = constrain(dynamic_assist_factor, 0.0, 4.0);
 }
 
 // =============================================================================
@@ -79,11 +73,14 @@ void calculate_assist_power() {
     human_power_watts = 500.0;
   }
   
-  // 2. CALCULATE SPEED-DEPENDENT ASSIST FACTOR
-  calculate_speed_dependent_assist();
-  
-  // 3. CALCULATE ASSIST POWER (NOW speed-dependent!)
-  assist_power_watts = dynamic_assist_factor * human_power_watts;
+  // 2. CALCULATE ASSIST POWER
+  if (current_mode == MODE_MAX && human_power_watts > 0.0) {
+    assist_power_watts = MAX_MOTOR_POWER;
+    dynamic_assist_factor = assist_power_watts / human_power_watts;
+  } else {
+    calculate_speed_dependent_assist();
+    assist_power_watts = dynamic_assist_factor * human_power_watts;
+  }
   
   // 4. LIMIT POWER
   if (assist_power_watts > MAX_MOTOR_POWER) {

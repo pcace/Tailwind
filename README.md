@@ -75,22 +75,19 @@ The ESP32's dual-core processor is utilized for optimal performance:
 
 #### Speed-Dependent Assist Algorithm
 
-The system implements sophisticated assist profiles with speed-dependent curves based on 6 speed points:
+| Mode | BLE ID | GPIO4 LED flashes | Assistance |
+|------|--------|-------------------|------------|
+| Urban | `0` | 1 | Default at startup. Multiplies rider power using the speed curve below. |
+| Max | `1` | 2 | Requests up to 350 W of assistance once forward pedaling is confirmed, subject to the 15 A motor-current command limit and VESC limits. |
+| Aus | `2` | 3 | Disables motor assistance. |
 
-**Speed Points**: 0, 5, 10, 15, 20, 30 km/h
+Backpedal one full revolution (32 valid reverse sensor transitions) to advance through Urban → Max → Aus → Urban. Forward pedaling or a pause clears a partial revolution. Max turns on the GPIO2 status LED.
 
-**Currently Active Profile**: Linear (1.0 across all speeds)
+| Speed (km/h) | 0 | 5 | 10 | 15 | 20 | 25 | 30 | 35 | 40 |
+|--------------|---|---|----|----|----|----|----|----|----|
+| Urban multiplier | 6 | 4 | 3 | 3.5 | 4.5 | 5.5 | 6.5 | 7.5 | 8.5 |
 
-**Available Profiles** (commented out in `config.cpp`):
-```
-Touring:      2.9 → 2.15 → 1.75 → 1.4 → 1.2 → 0.8  (0-30 km/h)
-Mountain Bike: 2.0 → 1.6 → 0.5 → 0.8 → 1.2 → 1.0   (0-30 km/h)
-Urban:        2.9 → 1.5 → 0.75 → 1.0 → 1.2 → 0.9   (0-30 km/h)
-Speed:        1.0 → 1.5 → 2.5 → 2.6 → 2.7 → 3.0    (0-30 km/h)
-No Assist:    0.0 → 0.0 → 0.0 → 0.0 → 0.0 → 0.0    (disabled)
-```
-
-**How it works**: Linear interpolation between speed points ensures smooth transitions without sudden power changes. Each profile has a different character - Touring starts strong then tapers off, Speed builds progressively, Mountain Bike has variable power for terrain changes.
+Urban retains the previous launch behavior with a factor of 6 at 0 km/h and 4 while moving through 5 km/h. Above 5 km/h it interpolates between the configured points, giving the calculated values shown at 25 and 35 km/h. The multiplier stays at 8.5 above 40 km/h. The existing overspeed stop still applies when measured speed exceeds 45 km/h.
 
 #### Sensor Integration
 
@@ -319,7 +316,7 @@ In addition to the WiFi web interface, the tailwind controller also provides a c
 
 **Control Service**
 - **Mode Control**: Write characteristic to change assist modes (uint8, 1 byte)
-- **Mode List**: Available assist profiles with descriptions (JSON string)
+- **Mode List**: Available assist profiles with IDs, names, and GPIO2 LED status settings (JSON string)
 - **Command Interface**: Text commands (GET_STATUS, GET_MODES, EMERGENCY_STOP)
 
 ### BLE Configuration
@@ -354,7 +351,7 @@ In addition to the WiFi web interface, the tailwind controller also provides a c
 4. Tap device → "Connect"
 5. Explore services and characteristics
 6. Enable notifications on telemetry characteristics for live data
-7. Use "Mode Control" characteristic to change assist modes (write hex values: 00, 01, 02, etc.)
+7. Use the "Mode Control" characteristic to select Urban (`00`), Max (`01`), or Aus (`02`).
 
 ### Android Connection
 
@@ -392,7 +389,7 @@ This is an open-source project designed for:
 
 **Key differences from EU regulations:**
 - No 25 km/h speed limit enforcement
-- Configurable assist profiles up to 30+ km/h
+- Configurable Urban assist curve with speed points through 40 km/h
 - No automatic power limitation at legal speeds
 - Full user control over assist parameters
 

@@ -1,44 +1,38 @@
 #include "tailwind_controller.h"
 
+#include <atomic>
+
 // WiFi Logging Integration
 #include "wifi_telemetry.h"
+
+namespace {
+// The sensor task owns the active mode and applies requests from BLE.
+std::atomic<int> requested_mode{-1};
+}
 
 // =============================================================================
 // MODE SWITCHING
 // =============================================================================
 
 void update_mode_selection() {
-  // Mode switch logic: Single mode change per reverse session
-  static bool mode_switched_this_session = false;  // Flag for current reverse cycle
-  
-  if (pos <= -MODE_SWITCH_STEPS) {
-    // Mode change only if not already switched in this session
-    if (!mode_switched_this_session) {
-      // Increase mode by 1 (relative)
-      int new_mode = current_mode + 1;
-      
-      // Wrap around: Only cycle through active profiles
-      if (new_mode >= NUM_ACTIVE_PROFILES) {
-        new_mode = 0;
-      }
-      
-      current_mode = new_mode;
-      mode_switched_this_session = true;  // Mark as switched
-      
-      Serial.print("MODE CHANGED: ");
-      Serial.print(current_mode);
-      Serial.print(" (Reverse steps: ");
-      Serial.print(-pos);
-      Serial.println(")");
-      
-      addLogMessage("Mode switched to: " + String(current_mode) + " (Reverse steps: " + String(-pos) + ")");
-      
-      // Show mode change via LED blinks
-      indicate_mode_change(current_mode);
+  if (reverse_steps >= MODE_SWITCH_STEPS) {
+    reverse_steps -= MODE_SWITCH_STEPS;
+    ++current_mode;
+    if (current_mode >= NUM_ACTIVE_PROFILES) {
+      current_mode = MODE_URBAN;
     }
-  } else {
-    // Position reset (=0) - reset session flag for next cycle
-    mode_switched_this_session = false;
+
+    Serial.printf("MODE CHANGED: %d (Reverse steps: %d)\n", current_mode, MODE_SWITCH_STEPS);
+    addLogMessage("Mode switched to: " + String(current_mode) + " (Reverse steps: " + String(MODE_SWITCH_STEPS) + ")");
+    indicate_mode_change(current_mode);
+  }
+
+  const int external_mode = requested_mode.exchange(-1, std::memory_order_relaxed);
+  if (external_mode >= 0) {
+    reverse_steps = 0;
+    current_mode = external_mode;
+    Serial.printf("External mode change to: %d (%s)\n", current_mode, AVAILABLE_PROFILES[current_mode].name);
+    indicate_mode_change(current_mode);
   }
   
   // Set light according to mode
@@ -53,21 +47,6 @@ void update_mode_selection() {
 // Mode change function for external interfaces (WiFi, BLE)
 void changeAssistMode(int new_mode) {
   if (new_mode >= 0 && new_mode < NUM_ACTIVE_PROFILES) {
-    // Update shared sensor data (thread-safe)
-    if (xSemaphoreTake(dataUpdateSemaphore, pdMS_TO_TICKS(100)) == pdTRUE) {
-      sharedSensorData.current_mode = new_mode;
-      current_mode = new_mode;  // Also update global variable for compatibility
-      
-      // Set light according to new mode
-      lightOn = AVAILABLE_PROFILES[new_mode].hasLight;
-      digitalWrite(LIGHT_PIN, lightOn ? HIGH : LOW);
-      
-      xSemaphoreGive(dataUpdateSemaphore);
-      
-      Serial.printf("External mode change to: %d (%s)\n", new_mode, AVAILABLE_PROFILES[new_mode].name);
-      
-      // Show mode change via LED blinks
-      indicate_mode_change(new_mode);
-    }
+    requested_mode.store(new_mode, std::memory_order_relaxed);
   }
 }

@@ -187,7 +187,7 @@ void sensorTask(void *pvParameters)
     // 10. Send motor command (thread-safe)
     if (xSemaphoreTake(motorCommandSemaphore, pdMS_TO_TICKS(5)) == pdTRUE)
     {
-      sharedMotorCommand.target_current = target_current_amps;
+      sharedMotorCommand.target_current = motor_enabled ? target_current_amps : 0.0f;
       sharedMotorCommand.command_ready = true;
       sharedMotorCommand.timestamp = millis();
       xSemaphoreGive(motorCommandSemaphore);
@@ -235,12 +235,9 @@ void vescTask(void *pvParameters)
     // 2. Update shared VESC data (thread-safe)
     if (xSemaphoreTake(dataUpdateSemaphore, pdMS_TO_TICKS(20)) == pdTRUE)
     {
-      sharedVescData.speed_kmh = current_speed_kmh;
-      sharedVescData.data_valid = vesc_data_valid;
       sharedVescData.actual_current = actual_current_amps;
       sharedVescData.battery_voltage = battery_voltage;
       sharedVescData.battery_percentage = battery_percentage;
-      sharedVescData.last_update = millis();
       xSemaphoreGive(dataUpdateSemaphore);
     }
 
@@ -249,22 +246,14 @@ void vescTask(void *pvParameters)
     {
       if (sharedMotorCommand.command_ready)
       {
-        float command_current = sharedMotorCommand.target_current;
-
         // Send command to VESC (BLOCKING operation)
-        if (motor_enabled)
-        {
-          vescUart.setCurrent(command_current);
-        }
-        else
-        {
-          vescUart.setCurrent(0.0);
-        }
-
+        vescUart.setCurrent(sharedMotorCommand.target_current);
         sharedMotorCommand.command_ready = false;
       }
       xSemaphoreGive(motorCommandSemaphore);
     }
+
+    update_battery_led();
 
     // 4. Debug output (low frequency to avoid spam)
     static unsigned long last_debug = 0;

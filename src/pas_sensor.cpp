@@ -56,11 +56,12 @@ void update_cadence() {
   unsigned long now = millis();
   
   // Timeout check: If too long without pedals, set cadence to 0
-  if (now - last_pulse_time > CADENCE_WINDOW_MS) {
+  if (now - last_pulse_time >= CADENCE_WINDOW_MS) {
     current_cadence_rpm = 0.0;
     current_cadence_rps = 0.0;
     pedal_direction = 0;  // Standstill
     pos = 0;  // Reset position on standstill
+    reverse_steps = 0;
     
     // Reset interrupt timing as well
     pas_interrupt_flag = false;
@@ -128,6 +129,14 @@ void read_pas_sensors() {
   };
   
   int direction_change = quadrature_table[old_state][new_state];
+
+  // Start a new gesture after a pause, a forward edge or a skipped Hall state.
+  if (direction_change >= 0 || now - last_pulse_time >= CADENCE_WINDOW_MS) {
+    reverse_steps = 0;
+  }
+  if (direction_change < 0) {
+    ++reverse_steps;
+  }
   
   if (direction_change != 0) {
     // Valid state transition

@@ -92,7 +92,7 @@ void EBikeModeControlCallbacks::onWrite(BLECharacteristic *pCharacteristic)
     {
       Serial.printf("BLE: Mode change request to %d\n", new_mode);
       changeAssistMode(new_mode);
-      addLogMessage("BLE Mode changed to: " + String(AVAILABLE_PROFILES[new_mode].name));
+      addLogMessage("BLE Mode requested: " + String(AVAILABLE_PROFILES[new_mode].name));
     }
     else
     {
@@ -126,16 +126,8 @@ void EBikeCommandCallbacks::onWrite(BLECharacteristic *pCharacteristic)
     }
     else if (command == "EMERGENCY_STOP")
     {
-      // Emergency stop - set mode to no assist
-      for (int i = 0; i < NUM_ACTIVE_PROFILES; i++)
-      {
-        if (String(AVAILABLE_PROFILES[i].name) == "No Assist")
-        {
-          changeAssistMode(i);
-          addLogMessage("BLE Emergency stop activated");
-          break;
-        }
-      }
+      changeAssistMode(MODE_OFF);
+      addLogMessage("BLE Emergency stop requested");
     }
     else
     {

@@ -49,7 +49,7 @@
 #define MODE_SWITCH_STEPS 32   // Number of reverse steps for mode switching
 
 // Speed-dependent assist configuration
-#define NUM_SPEED_POINTS 6 // Number of speed interpolation points
+#define NUM_SPEED_POINTS 7 // Number of speed interpolation points
 
 // Hardware pins (ESP32 DevKit v1 Pin Layout)
 // Note: 5V sensors need logic level converter for ESP32 (3.3V)
@@ -150,7 +150,13 @@ extern bool vesc_bridge_mode; // Enable VESC Bridge Mode (disables tailwind cont
 // SPEED-DEPENDENT ASSIST PROFILES
 // =============================================================================
 
-// Assist profile structure
+enum AssistMode
+{
+  MODE_URBAN = 0,
+  MODE_MAX,
+  MODE_OFF
+};
+
 struct AssistProfile
 {
   const char *name;
@@ -176,7 +182,8 @@ extern float ASSIST_PROFILES[][NUM_SPEED_POINTS];
 extern bool LIGHT_MODES[];
 
 // PAS sensor state variables
-extern int pos;             // Pedal position (for mode switching)
+extern int pos;             // Net pedal position
+extern int reverse_steps;   // Consecutive reverse PAS transitions
 extern int a, b;            // Hall sensor states
 extern int pedal_direction; // Current pedal direction: 1=forward, -1=backward, 0=standstill
 extern unsigned long last_pulse_time;
@@ -287,7 +294,8 @@ void vescTask(void *pvParameters);
 // Initialization
 void tailwind_setup();
 void startup_battery_indicator(); // Show battery level at startup
-void indicate_mode_change(int mode); // Show current mode via LED blinks
+void indicate_mode_change(int mode); // Queue mode feedback on the battery LED
+bool update_mode_indicator();       // Advance the blink sequence without blocking
 void initializeAssistProfiles();  // Initialize assist profiles from active configuration
 
 // Sensor functions

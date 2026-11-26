@@ -45,7 +45,6 @@ void update_vesc_data() {
   
   if (vesc_success) {
     // Successful data query
-    vesc_data_valid = true;
     last_vesc_data_time = now;
     
     // Calculate speed from eRPM (CORRECTED FOR Q100C NABENMOTOR!)
@@ -60,13 +59,15 @@ void update_vesc_data() {
     float wheel_circumference_m = PI * WHEEL_DIAMETER_M;
     
     // km/h = (wheel_revolutions/min) × (circumference in m) × (60 min/h) × (1 km/1000m)
-    current_speed_kmh = wheel_rpm * wheel_circumference_m * 0.06; // 60/1000
+    float speed_kmh = wheel_rpm * wheel_circumference_m * 0.06; // 60/1000
     
     // Plausibility check (E-bikes don't go over 50 km/h)
-    if (current_speed_kmh < 0 || current_speed_kmh > 50.0) {
-      current_speed_kmh = 0.0;
-      vesc_data_valid = false;
+    const bool speed_data_valid = speed_kmh >= 0.0 && speed_kmh <= 50.0;
+    if (!speed_data_valid) {
+      speed_kmh = 0.0;
     }
+    current_speed_kmh = speed_kmh;
+    vesc_data_valid = speed_data_valid;
     
     // Also read actual current for monitoring
     actual_current_amps = vescUart.data.avgMotorCurrent;
@@ -81,8 +82,8 @@ void update_vesc_data() {
     
     // Update shared VESC data (thread-safe)
     if (xSemaphoreTake(dataUpdateSemaphore, pdMS_TO_TICKS(5)) == pdTRUE) {
-      sharedVescData.speed_kmh = current_speed_kmh;
-      sharedVescData.data_valid = vesc_data_valid;
+      sharedVescData.speed_kmh = speed_kmh;
+      sharedVescData.data_valid = speed_data_valid;
       sharedVescData.actual_current = actual_current_amps;
       sharedVescData.battery_voltage = battery_voltage;
       sharedVescData.battery_percentage = battery_percentage;
@@ -94,7 +95,7 @@ void update_vesc_data() {
       sharedVescData.temp_motor = temp_motor_raw;
       sharedVescData.amp_hours = amp_hours_raw;
       sharedVescData.watt_hours = watt_hours_raw;
-      sharedVescData.last_update = now;
+      sharedVescData.last_update = millis();
       
       xSemaphoreGive(dataUpdateSemaphore);
     }
@@ -120,6 +121,11 @@ void update_vesc_data() {
     // VESC communication failed or timeout
     vesc_data_valid = false;
     current_speed_kmh = 0.0;
+    if (xSemaphoreTake(dataUpdateSemaphore, pdMS_TO_TICKS(5)) == pdTRUE) {
+      sharedVescData.speed_kmh = 0.0;
+      sharedVescData.data_valid = false;
+      xSemaphoreGive(dataUpdateSemaphore);
+    }
     
     // Connection lost handling
     static unsigned long connection_lost_time = 0;
@@ -176,12 +182,14 @@ void update_battery_status() {
                    battery_voltage, battery_percentage);
     }
   }
-  
-  // Update battery LED
-  update_battery_led();
 }
 
 void update_battery_led() {
+  if (update_mode_indicator()) {
+    battery_led_state = false;
+    return;
+  }
+
   unsigned long now = millis();
   
   if (battery_low) {
