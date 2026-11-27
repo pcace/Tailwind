@@ -1,6 +1,11 @@
 #include "tailwind_controller.h"
 #include <VescUart.h>
 
+#ifdef TAILWIND_USB_LOGGING
+#include "ride_trace.h"
+#include <esp_timer.h>
+#endif
+
 // WiFi Logging Integration
 #include "wifi_telemetry.h"
 
@@ -35,6 +40,9 @@ void update_vesc_data() {
   
   // Try to query VESC data with reasonable timeout 
   // Since we're on Core 1, blocking here doesn't affect PAS sensors
+#ifdef TAILWIND_USB_LOGGING
+  const int64_t query_started_us = esp_timer_get_time();
+#endif
   while (millis() - vesc_start_time < 100) {  // Max 100ms timeout
     if (vescUart.getVescValues()) {
       vesc_success = true;
@@ -42,6 +50,9 @@ void update_vesc_data() {
     }
     vTaskDelay(pdMS_TO_TICKS(10));  // Use FreeRTOS delay instead of Arduino delay
   }
+#ifdef TAILWIND_USB_LOGGING
+  const auto query_us = static_cast<uint32_t>(esp_timer_get_time() - query_started_us);
+#endif
   
   if (vesc_success) {
     // Successful data query
@@ -105,6 +116,13 @@ void update_vesc_data() {
       sharedVescData.last_update = millis();
       xSemaphoreGive(dataUpdateSemaphore);
     }
+
+#ifdef TAILWIND_USB_LOGGING
+    traceRideVesc({query_us, true, speed_data_valid, speed_kmh, erpm,
+                   actual_current_amps, vescUart.data.avgInputCurrent, battery_voltage,
+                   vescUart.data.dutyCycleNow, vescUart.data.tempMosfet, vescUart.data.wattHours,
+                   vescUart.data.wattHoursCharged, static_cast<int>(vescUart.data.error)});
+#endif
     
     // Update battery status
     update_battery_status();
@@ -119,20 +137,30 @@ void update_vesc_data() {
       sharedVescData.telemetry_valid = false;
       xSemaphoreGive(dataUpdateSemaphore);
     }
+
+#ifdef TAILWIND_USB_LOGGING
+    RideVescSample sample{};
+    sample.query_us = query_us;
+    traceRideVesc(sample);
+#endif
     
     // Connection lost handling
     static unsigned long connection_lost_time = 0;
     if (connection_lost_time == 0) {
       connection_lost_time = now;
+#ifndef TAILWIND_USB_LOGGING
       Serial.println("WARNING: VESC connection lost!");
       addLogMessage("WARNING: VESC connection lost!");
+#endif
     }
     
     // After 5 seconds without connection, go to safe mode
     if (now - connection_lost_time > 5000) {
       motor_enabled = false;
+#ifndef TAILWIND_USB_LOGGING
       addLogMessage("SAFETY: Motor disabled - VESC connection failed");
       // Serial.println("SAFETY: Motor disabled due to VESC connection loss");
+#endif
     }
   }
 }
@@ -147,32 +175,40 @@ void update_battery_status() {
     if (!battery_critical) {
       battery_critical = true;
       battery_low = true;  // Critical implies low
+#ifndef TAILWIND_USB_LOGGING
       Serial.printf("CRITICAL: Battery critically low! Voltage: %.1fV (%.1f%%) - Fast blinking!\n", 
                    battery_voltage, battery_percentage);
       addLogMessage("CRITICAL: Battery critically low! " + String(battery_percentage, 0) + "% (" + String(battery_voltage, 1) + "V)");
+#endif
     }
   } else if (battery_percentage <= BATTERY_LOW_THRESHOLD) {
     // Check if battery is low (≤20%)
     if (!battery_low) {
       battery_low = true;
       battery_critical = false;
+#ifndef TAILWIND_USB_LOGGING
       Serial.printf("WARNING: Low battery! Voltage: %.1fV (%.1f%%)\n", 
                    battery_voltage, battery_percentage);
       addLogMessage("WARNING: Battery low! " + String(battery_percentage, 0) + "% (" + String(battery_voltage, 1) + "V)");
+#endif
     } else if (battery_critical) {
       // Battery recovered from critical to low
       battery_critical = false;
+#ifndef TAILWIND_USB_LOGGING
       Serial.printf("INFO: Battery recovered from critical to low. Voltage: %.1fV (%.1f%%)\n", 
                    battery_voltage, battery_percentage);
       addLogMessage("INFO: Battery recovered from critical to low. " + String(battery_percentage, 0) + "% (" + String(battery_voltage, 1) + "V)");
+#endif
     }
   } else {
     // Battery is OK
     if (battery_low || battery_critical) {
       battery_low = false;
       battery_critical = false;
+#ifndef TAILWIND_USB_LOGGING
       Serial.printf("INFO: Battery level OK again. Voltage: %.1fV (%.1f%%)\n", 
                    battery_voltage, battery_percentage);
+#endif
     }
   }
 }

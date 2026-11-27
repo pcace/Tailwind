@@ -137,6 +137,7 @@ void calculate_assist_power() {
     target_current_amps = MIN_MOTOR_CURRENT;
   }
   
+#ifndef TAILWIND_USB_LOGGING
   // DEBUG: Log power calculation periodically
   static unsigned long last_power_debug = 0;
   unsigned long now = millis();
@@ -146,4 +147,5 @@ void calculate_assist_power() {
                   dynamic_assist_factor, assist_power_watts, current_motor_rpm, target_current_amps);
     last_power_debug = now;
   }
+#endif
 }

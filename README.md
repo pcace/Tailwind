@@ -29,6 +29,7 @@ An e-bike controller built on ESP32 with dual-core architecture for responsive p
   - [Assist Profiles](#assist-profiles)
   - [Ride Recording](#ride-recording)
   - [HTTP API](#http-api)
+- [USB Ride Diagnostics](#usb-ride-diagnostics)
 - [Legal Compliance](#legal-compliance)
 - [Configuration](#configuration)
 - [Contributing](#contributing)
@@ -226,6 +227,8 @@ Start a ride on the webpage and keep the page open in the foreground. About once
 
 The ride shows net energy from the change in consumed Wh minus the change in returned Wh. A detected counter reset suppresses the net figure. The CSV includes both raw counters. The displayed speed is estimated from motor RPM and can drop to zero when the geared hub freewheels.
 
+Starting a recording writes a ride record in the browser and uses the same status polling as live view. After a lost connection the dashboard compares the ESP boot ID to distinguish a reboot from a connection interruption. The status API and ride CSV include the ESP reset reason and boot ID.
+
 ### HTTP API
 
 | Method | Path | Result |
@@ -238,6 +241,25 @@ The ride shows net energy from the change in consumed Wh minus the change in ret
 For a mode change, send `mode=0` (Urban), `mode=1` (Max Power), `mode=2` (Aus), or `mode=3` (Custom) as `application/x-www-form-urlencoded`. To save a curve, send seven comma-separated integers from 0 to 100 as `text/plain`, for example `60,40,30,35,45,65,85` for the default values. Both writes use the fixed AP IP and the header `X-Tailwind-Request: 1`.
 
 In the status sample, `battery_a` comes from VESC input current and `motor_a` from motor phase current. `duty` is a fraction, so `0.5` means 50%. `watt_hours` and `watt_hours_charged` are cumulative VESC counters.
+
+## USB Ride Diagnostics
+
+Build the `esp32-usb-logging` PlatformIO environment for a diagnostic ride. Upload that environment to the ESP, then connect its USB port to an Android phone in USB host mode. Use **460800 baud, 8N1**, with flow control off. [UsbTerminal for Android](https://github.com/liorhass/UsbTerminal) supports the CH340 converter and session files. Start file logging before the first pedal stroke and export the raw text file. The ESP streams continuously after boot in this environment. The regular `esp32doit-devkit-v1` environment runs the WiFi dashboard at its usual 115200-baud console speed. WiFi is off in the USB environment so the measurement isolates the controls and VESC link.
+
+```sh
+pio run -e esp32-usb-logging
+python3 tools/usb_log_to_csv.py ride.txt
+```
+
+The converter produces `sensor.csv`, `commands.csv`, `vesc.csv`, and `boots.csv` and reports sequence gaps by boot and stream. The `uptime_us` values share an ESP clock within each `boot_id`. The log is saved by the USB host.
+
+| Record | Nominal rate | What to compare at launch |
+| --- | --- | --- |
+| Sensor | 100 Hz | PAS movement and direction, calibrated and measured ADC values, torque and cadence, rider power, assist multiplier, requested power, limited and gated current. |
+| Command | Up to 20 Hz | Actual UART dispatch and the `sensor_seq` of the command that the VESC task picked up. The VESC protocol's current command has no acknowledgment. |
+| VESC | About 10 Hz | Query duration and reply status, motor and battery current, eRPM, duty, voltage, energy counters and fault code. |
+
+For a comparison, capture a few starts from rest in Urban and Max Power. Match the sensor `seq` to `sensor_seq` in the UART command within the same boot, then look for rising motor current and eRPM in the VESC rows. Some sensor decisions are superseded before a UART dispatch. Motor-derived speed can read zero while the wheel freewheels. Phase current is measured by the VESC. Output torque and actual wheel speed while coasting require other measurements.
 
 ## Legal Compliance
 

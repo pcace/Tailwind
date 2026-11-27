@@ -127,6 +127,9 @@ struct SharedMotorCommand
   float target_current;
   bool command_ready;
   unsigned long timestamp;
+#ifdef TAILWIND_USB_LOGGING
+  uint32_t trace_sensor_seq;
+#endif
   bool test_mode;
   unsigned long test_end_time;
 };

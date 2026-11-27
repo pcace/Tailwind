@@ -52,7 +52,10 @@ const char webInterface[] PROGMEM = R"HTML(<!doctype html>
 <main>
   <header class="bar">
     <h1>Tailwind</h1>
-    <p id="connection" class="subtle" role="status">Verbinde mit dem Fahrrad …</p>
+    <div class="subtle">
+      <p id="connection" role="status">Verbinde mit dem Fahrrad …</p>
+      <p id="boot-message" role="status" hidden></p>
+    </div>
   </header>
   <section aria-label="Livewerte und Unterstützung">
     <div class="panel">
@@ -130,7 +133,11 @@ const char webInterface[] PROGMEM = R"HTML(<!doctype html>
   ];
   const columns = [
     'uptime_ms', 'vesc_valid', 'speed_kmh', 'mode', 'motor_enabled',
-    ...labels.map(([key]) => key)
+    ...labels.map(([key]) => key), 'boot_id', 'reset_reason'
+  ];
+  const resetReasons = [
+    'Grund unbekannt', 'Einschalten', 'Externer Reset', 'Software-Reset', 'Programmabsturz',
+    'Interrupt-Watchdog', 'Task-Watchdog', 'Watchdog', 'Tiefschlaf', 'Unterspannung', 'SDIO-Reset'
   ];
   const metrics = labels.map(([key, name, unit, decimals]) => {
     const row = document.createElement('div');
@@ -145,6 +152,8 @@ const char webInterface[] PROGMEM = R"HTML(<!doctype html>
   const number = (value, decimals) =>
     Number.isFinite(value) ? value.toLocaleString('de-DE', {maximumFractionDigits:decimals}) : '–';
   let latest = null;
+  let lastGoodStatus = null;
+  let connectionError = '';
   let modeBusy = false;
   let requestedMode = null;
   let db;
@@ -167,9 +176,10 @@ const char webInterface[] PROGMEM = R"HTML(<!doctype html>
   }
 
   function renderStatus(data) {
-    $('connection').textContent = data
+    const connection = data
       ? (data.vesc_valid ? 'Verbunden' : 'Verbunden · VESC-Daten fehlen')
-      : 'Keine Verbindung zum ESP';
+      : connectionError;
+    if ($('connection').textContent !== connection) $('connection').textContent = connection;
     $('speed').textContent = number(data?.speed_kmh, 1);
     $('motor-state').textContent = data
       ? (data.motor_enabled ? 'Motor unterstützt' : 'Motor unterstützt gerade nicht')
@@ -201,6 +211,23 @@ const char webInterface[] PROGMEM = R"HTML(<!doctype html>
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  function bootChanged(previousId, previousUptime, data) {
+    if (Number.isInteger(previousId) && Number.isInteger(data.boot_id)) return previousId !== data.boot_id;
+    return data.uptime_ms < previousUptime;
+  }
+
+  function bootMessage(message) {
+    $('boot-message').textContent = message;
+    $('boot-message').hidden = !message;
+  }
+
+  function describeConnectionError(error) {
+    if (error.name === 'AbortError') return 'Zeitüberschreitung beim ESP-Status';
+    if (error.name === 'SyntaxError') return 'Ungültige Statusantwort vom ESP';
+    if (error.message.startsWith('HTTP ')) return 'Statusabruf fehlgeschlagen (' + error.message + ')';
+    return navigator.onLine === false ? 'Browser meldet keine Netzwerkverbindung' : 'ESP nicht erreichbar';
   }
 
   for (const button of modeButtons) {
@@ -473,8 +500,8 @@ const char webInterface[] PROGMEM = R"HTML(<!doctype html>
 
   async function saveSample(ride, data) {
     const time = Date.now();
-    const next = {...ride, count:ride.count + 1, lastUptime:data.uptime_ms};
-    if (ride.lastUptime !== undefined && data.uptime_ms < ride.lastUptime) next.reset = true;
+    const next = {...ride, count:ride.count + 1, lastUptime:data.uptime_ms, lastBootId:data.boot_id};
+    if (bootChanged(ride.lastBootId, ride.lastUptime, data)) next.reset = true;
     if (data.vesc_valid && Number.isFinite(data.watt_hours) && Number.isFinite(data.watt_hours_charged)) {
       const energy = [data.watt_hours, data.watt_hours_charged];
       if (ride.lastEnergy && (energy[0] < ride.lastEnergy[0] || energy[1] < ride.lastEnergy[1])) next.reset = true;
@@ -577,9 +604,24 @@ const char webInterface[] PROGMEM = R"HTML(<!doctype html>
     const start = performance.now();
     try {
       latest = await request('/api/status');
-      if (!Number.isFinite(latest?.uptime_ms)) latest = null;
-    } catch {
+      if (!Number.isFinite(latest?.uptime_ms)) throw new SyntaxError();
+      if (lastGoodStatus) {
+        const hasBootIds = Number.isInteger(lastGoodStatus.boot_id) && Number.isInteger(latest.boot_id);
+        if (bootChanged(lastGoodStatus.boot_id, lastGoodStatus.uptime_ms, latest)) {
+          bootMessage(hasBootIds
+            ? 'ESP neu gestartet · ' + (resetReasons[latest.reset_reason] || 'Grund unbekannt')
+            : 'ESP-Laufzeit zurückgesetzt · Startkennung fehlt');
+        } else if (connectionError) {
+          bootMessage(hasBootIds ? 'Verbindung wiederhergestellt · ESP lief weiter'
+            : 'Verbindung wiederhergestellt · ESP-Laufzeit fortgesetzt');
+        }
+      }
+      lastGoodStatus = latest;
+      connectionError = '';
+    } catch (error) {
       latest = null;
+      if (lastGoodStatus && !connectionError) bootMessage('ESP-Neustart noch nicht geprüft');
+      connectionError = describeConnectionError(error);
     }
     renderStatus(latest);
     if (latest && activeRide) {

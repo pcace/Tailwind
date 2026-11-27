@@ -1,4 +1,5 @@
 #include "wifi_telemetry.h"
+#include "boot_diagnostics.h"
 #include "tailwind_controller.h"
 #include "wifi_page.h"
 
@@ -95,12 +96,13 @@ esp_err_t handleStatus(httpd_req_t *request)
   char response[640];
   const int length = std::snprintf(
       response, sizeof(response),
-      "{\"uptime_ms\":%lu,\"vesc_valid\":%s,\"mode\":%s,\"motor_enabled\":%s,"
+      "{\"uptime_ms\":%lu,\"boot_id\":%lu,\"reset_reason\":%d,"
+      "\"vesc_valid\":%s,\"mode\":%s,\"motor_enabled\":%s,"
       "\"speed_kmh\":%s,\"cadence_rpm\":%s,\"torque_nm\":%s,\"rider_w\":%s,"
       "\"target_motor_a\":%s,\"motor_a\":%s,\"battery_a\":%s,\"battery_v\":%s,"
       "\"battery_percent\":%s,\"duty\":%s,\"watt_hours\":%s,"
       "\"watt_hours_charged\":%s,\"temp_fet_c\":%s}",
-      now, vesc_fresh ? "true" : "false",
+      now, static_cast<unsigned long>(rideBootId()), rideResetReason(), vesc_fresh ? "true" : "false",
       formatMetric(static_cast<float>(sensor.current_mode), mode_valid).text, motor_enabled,
       formatMetric(vesc.speed_kmh, vesc_fresh && vesc.data_valid).text,
       formatMetric(sensor.cadence_rpm, sensor_fresh).text,

@@ -45,6 +45,7 @@ void update_motor_status() {
     xSemaphoreGive(dataUpdateSemaphore);
   }
   
+#ifndef TAILWIND_USB_LOGGING
   // DEBUG: Log all conditions periodically
   static unsigned long last_motor_debug = 0;
   if (now - last_motor_debug > 1000) { // Every 1 second
@@ -57,6 +58,7 @@ void update_motor_status() {
                   vesc_data_fresh ? "YES" : "NO");
     last_motor_debug = now;
   }
+#endif
   
   motor_enabled = pas_active && torque_present && cadence_valid && 
                  mode_allows_assist && forward_pedaling && vesc_data_fresh;
@@ -64,8 +66,10 @@ void update_motor_status() {
   // Additional safety checks
   if (current_cadence_rpm > 250.0) {  // Over 250 RPM = unrealistic
     motor_enabled = false;
+#ifndef TAILWIND_USB_LOGGING
     Serial.println("MOTOR: Disabled due to excessive cadence");
     addLogMessage("WARNING: Motor stopped - excessive cadence (" + String(current_cadence_rpm) + " RPM)");
+#endif
   }
   
   if (abs(raw_torque_value - torque_standstill_calibrated) < TORQUE_THRESHOLD) {  // No torque detected
@@ -81,8 +85,10 @@ void update_motor_status() {
   if (current_speed_kmh > 45.0) {
     motor_enabled = false;
     target_current_amps = 0.0;
+#ifndef TAILWIND_USB_LOGGING
     Serial.println("EMERGENCY: Speed limit exceeded - motor disabled!");
     addLogMessage("EMERGENCY: Speed limit exceeded (" + String(current_speed_kmh) + " km/h) - motor stopped!");
+#endif
   }
 
 }

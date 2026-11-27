@@ -34,7 +34,12 @@
 
 #include <Arduino.h>
 #include <VescUart.h>
+#include "boot_diagnostics.h"
 #include "tailwind_controller.h"
+#ifdef TAILWIND_USB_LOGGING
+#include "ride_trace.h"
+#include <esp_timer.h>
+#endif
 
 // WiFi Web Interface Integration
 #include "wifi_telemetry.h"
@@ -91,8 +96,11 @@ void sensorTask(void *pvParameters)
 
   Serial.println("Sensor Task started on Core 0");
 
-  // Add periodic status output for debugging
+#ifndef TAILWIND_USB_LOGGING
   unsigned long last_status = 0;
+#else
+  static uint32_t next_trace_sensor_seq = 0;
+#endif
 
   for (;;)
   {
@@ -106,6 +114,7 @@ void sensorTask(void *pvParameters)
       update_debug_simulation();
     }
 
+#ifndef TAILWIND_USB_LOGGING
     // Debug output every 2 seconds
     if (millis() - last_status > 2000)
     {
@@ -113,6 +122,7 @@ void sensorTask(void *pvParameters)
                     current_cadence_rpm, filtered_torque, raw_torque_value, current_mode, motor_enabled ? "ON" : "OFF");
       last_status = millis();
     }
+#endif
 
     // 1. Read PAS sensors (interrupt-based, very fast)
     read_pas_sensors();
@@ -167,7 +177,8 @@ void sensorTask(void *pvParameters)
 
     // 7. Motor status and safety checks
     update_motor_status();
-    const float commanded_current = motor_enabled ? target_current_amps : 0.0f;
+    const bool assist_enabled = motor_enabled;
+    const float commanded_current = assist_enabled ? target_current_amps : 0.0f;
 
     // 8. Update shared sensor data (thread-safe)
     if (xSemaphoreTake(dataUpdateSemaphore, pdMS_TO_TICKS(10)) == pdTRUE)
@@ -184,14 +195,34 @@ void sensorTask(void *pvParameters)
       xSemaphoreGive(dataUpdateSemaphore);
     }
 
-    // 10. Send motor command (thread-safe)
+#ifdef TAILWIND_USB_LOGGING
+    const uint32_t sensor_seq = next_trace_sensor_seq++;
+    uint32_t sensor_ms = millis();
+    bool command_published = false;
+#endif
+    // Publish the latest motor command for the VESC task.
     if (xSemaphoreTake(motorCommandSemaphore, pdMS_TO_TICKS(5)) == pdTRUE)
     {
       sharedMotorCommand.target_current = commanded_current;
       sharedMotorCommand.command_ready = true;
       sharedMotorCommand.timestamp = millis();
+#ifdef TAILWIND_USB_LOGGING
+      sharedMotorCommand.trace_sensor_seq = sensor_seq;
+      sensor_ms = sharedMotorCommand.timestamp;
+      command_published = true;
+#endif
       xSemaphoreGive(motorCommandSemaphore);
     }
+
+#ifdef TAILWIND_USB_LOGGING
+    traceRideSensor({sensor_seq, sensor_ms, current_mode, pos, pedal_direction,
+                     static_cast<uint32_t>(millis() - last_pedal_activity),
+                     raw_torque_value, torque_standstill_calibrated, crank_torque_nm,
+                     filtered_torque, current_cadence_rpm, human_power_watts,
+                     dynamic_assist_factor, assist_power_watts, target_current_amps,
+                     commanded_current, assist_enabled, current_speed, current_motor_rpm,
+                     speed_valid, command_published});
+#endif
 
     // Precise timing (100Hz)
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -212,8 +243,9 @@ void vescTask(void *pvParameters)
 
   Serial.println("VESC Task started on Core 1");
 
-  // Add periodic status output for debugging
+#ifndef TAILWIND_USB_LOGGING
   unsigned long last_status = 0;
+#endif
 
   for (;;)
   {
@@ -221,6 +253,7 @@ void vescTask(void *pvParameters)
     // VESC COMMUNICATION (Core 1) - Can block without affecting sensors
     // -------------------------------------------------------------------------
 
+#ifndef TAILWIND_USB_LOGGING
     // Debug output every 3 seconds
     if (millis() - last_status > 3000)
     {
@@ -228,24 +261,44 @@ void vescTask(void *pvParameters)
                     current_speed_kmh, vesc_data_valid ? "YES" : "NO", loopCounter, battery_voltage, battery_percentage);
       last_status = millis();
     }
+#endif
 
     // 1. Query VESC data (speed, telemetry) - BLOCKING operation
     update_vesc_data(); // This can take 50ms without affecting Core 0!
 
+#ifdef TAILWIND_USB_LOGGING
+    RideCommandSample sent{};
+    bool dispatched = false;
+#endif
     // 3. Send motor command if ready (thread-safe)
     if (xSemaphoreTake(motorCommandSemaphore, pdMS_TO_TICKS(10)) == pdTRUE)
     {
       if (sharedMotorCommand.command_ready)
       {
         // Send command to VESC (BLOCKING operation)
+#ifdef TAILWIND_USB_LOGGING
+        const int64_t write_start = esp_timer_get_time();
+#endif
         vescUart.setCurrent(sharedMotorCommand.target_current);
+#ifdef TAILWIND_USB_LOGGING
+        sent = {sharedMotorCommand.trace_sensor_seq, static_cast<uint32_t>(sharedMotorCommand.timestamp),
+                sharedMotorCommand.target_current,
+                static_cast<uint32_t>(esp_timer_get_time() - write_start)};
+        dispatched = true;
+#endif
         sharedMotorCommand.command_ready = false;
       }
       xSemaphoreGive(motorCommandSemaphore);
     }
 
+#ifdef TAILWIND_USB_LOGGING
+    if (dispatched) {
+      traceRideCommand(sent);
+    }
+#endif
     update_battery_led();
 
+#ifndef TAILWIND_USB_LOGGING
     // 4. Debug output (low frequency to avoid spam)
     static unsigned long last_debug = 0;
     if (millis() - last_debug > 500)
@@ -253,6 +306,7 @@ void vescTask(void *pvParameters)
       print_debug_info();
       last_debug = millis();
     }
+#endif
 
     // Update loop counter for compatibility
     loopCounter++;
@@ -268,8 +322,17 @@ void vescTask(void *pvParameters)
 
 void setup()
 {
-  // Enable debug serial (USB Serial)
-  Serial.begin(115200);
+#ifdef TAILWIND_USB_LOGGING
+  if (!vesc_bridge_mode) {
+    Serial.setTxBufferSize(8192);
+    Serial.begin(460800);
+  } else
+#endif
+  {
+    Serial.begin(115200);
+  }
+  Serial.printf("Tailwind boot_id=%lu reset_reason=%d\n",
+                static_cast<unsigned long>(rideBootId()), rideResetReason());
   Serial.println("Starting Multi-Core Tailwind Controller (ESP32 DevKit v1)...");
 
   // =============================================================================
@@ -338,6 +401,9 @@ void setup()
 
   Serial.println("Semaphores created successfully");
 
+#ifdef TAILWIND_USB_LOGGING
+  setupRideTrace();
+#endif
   // Create FreeRTOS tasks on specific cores
   Serial.println("Creating FreeRTOS tasks...");
 
@@ -377,10 +443,12 @@ void setup()
   }
 
   // *** WiFi Web Interface Integration ***
+#ifndef TAILWIND_USB_LOGGING
   if (enable_wifi_telemetry)
   {
     setupWifiTelemetry();
   }
+#endif
 
   Serial.println("Multi-Core tasks created successfully!");
   Serial.println("Setup complete - FreeRTOS scheduler will start tasks");
