@@ -246,6 +246,8 @@ In the status sample, `battery_a` comes from VESC input current and `motor_a` fr
 
 Build the `esp32-usb-logging` PlatformIO environment for a diagnostic ride. Upload that environment to the ESP, then connect its USB port to an Android phone in USB host mode. Use **460800 baud, 8N1**, with flow control off. [UsbTerminal for Android](https://github.com/liorhass/UsbTerminal) supports the CH340 converter and session files. Start file logging before the first pedal stroke and export the raw text file. The ESP streams continuously after boot in this environment. The regular `esp32doit-devkit-v1` environment runs the WiFi dashboard at its usual 115200-baud console speed. WiFi is off in the USB environment so the measurement isolates the controls and VESC link.
 
+Use `esp32-usb-logging-wifi` to run the dashboard and 460800-baud USB trace together. The USB trace continues while the browser starts, saves or stops a ride recording. The boot ID is shared between the USB and WiFi streams.
+
 ```sh
 pio run -e esp32-usb-logging
 python3 tools/usb_log_to_csv.py ride.txt

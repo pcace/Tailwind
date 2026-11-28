@@ -443,7 +443,7 @@ void setup()
   }
 
   // *** WiFi Web Interface Integration ***
-#ifndef TAILWIND_USB_LOGGING
+#if !defined(TAILWIND_USB_LOGGING) || defined(TAILWIND_USB_LOGGING_WIFI)
   if (enable_wifi_telemetry)
   {
     setupWifiTelemetry();

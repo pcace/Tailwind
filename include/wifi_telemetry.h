@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 // Kept for callers that formerly logged to the web interface.
-#ifdef TAILWIND_USB_LOGGING
+#if defined(TAILWIND_USB_LOGGING) && !defined(TAILWIND_USB_LOGGING_WIFI)
 inline void addLogMessage(const String &) {}
 inline void addLogMessage(const char *) {}
 #else
