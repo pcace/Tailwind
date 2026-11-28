@@ -248,6 +248,8 @@ Build the `esp32-usb-logging` PlatformIO environment for a diagnostic ride. Uplo
 
 Use `esp32-usb-logging-wifi` to run the dashboard and 460800-baud USB trace together. The USB trace continues while the browser starts, saves or stops a ride recording. The boot ID is shared between the USB and WiFi streams.
 
+For Android capture problems, the `esp32-usb-logging-230400` environment provides the same USB trace at **230400 baud, 8N1**. Select that rate in the phone's serial settings for the comparison. The ESP sensor, VESC command, and VESC query rates are the same as in the 460800-baud build.
+
 ```sh
 pio run -e esp32-usb-logging
 python3 tools/usb_log_to_csv.py ride.txt

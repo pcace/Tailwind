@@ -39,6 +39,9 @@
 #ifdef TAILWIND_USB_LOGGING
 #include "ride_trace.h"
 #include <esp_timer.h>
+#ifndef TAILWIND_USB_LOG_BAUD
+#define TAILWIND_USB_LOG_BAUD 460800
+#endif
 #endif
 
 // WiFi Web Interface Integration
@@ -325,7 +328,7 @@ void setup()
 #ifdef TAILWIND_USB_LOGGING
   if (!vesc_bridge_mode) {
     Serial.setTxBufferSize(8192);
-    Serial.begin(460800);
+    Serial.begin(TAILWIND_USB_LOG_BAUD);
   } else
 #endif
   {
